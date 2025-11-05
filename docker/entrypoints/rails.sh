@@ -18,9 +18,14 @@ echo "✅ Database is ready!"
 
 # Run database preparations
 echo "📊 Preparing database..."
-bundle exec rails db:chatwoot_prepare || {
-  echo "⚠️  Warning: Database preparation had issues, but continuing..."
-}
+if bundle exec rails db:chatwoot_prepare; then
+  echo "✅ Database preparation successful!"
+else
+  EXIT_CODE=$?
+  echo "⚠️  Warning: Database preparation failed with exit code ${EXIT_CODE}"
+  echo "   This might be expected on first run or if database already initialized."
+  echo "   Application will attempt to start anyway..."
+fi
 
 echo "✅ Setup complete!"
 echo "=========================================="

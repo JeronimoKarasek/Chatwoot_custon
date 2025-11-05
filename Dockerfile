@@ -105,9 +105,9 @@ COPY patches/zz_final_unlock.rb /app/config/initializers/zz_final_unlock.rb
 COPY patches/check_new_versions_job_patch.rb /app/config/initializers/check_new_versions_job_patch.rb
 COPY patches/_user.json.jbuilder /app/app/views/api/v1/models/_user.json.jbuilder
 
-# Copiar brand assets se existirem
+# Copiar brand assets se existirem (opcional)
 RUN mkdir -p /app/public/brand-assets
-COPY patches/brand-assets/*.svg /app/public/brand-assets/ || echo "⚠️  No custom brand assets found, using defaults"
+COPY --chown=root:root patches/brand-assets/ /app/public/brand-assets/ || true
 
 # Pré-compilar assets
 RUN SECRET_KEY_BASE=placeholder bundle exec rails assets:precompile
