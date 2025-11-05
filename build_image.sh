@@ -35,7 +35,6 @@ echo ""
 # Build da imagem
 docker build \
     --tag "${FULL_IMAGE}" \
-    --tag "${REGISTRY}/${OWNER}/${IMAGE_NAME}:${TAG}" \
     --build-arg CHATWOOT_VERSION=v3.13.0 \
     --progress=plain \
     .

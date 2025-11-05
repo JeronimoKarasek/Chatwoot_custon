@@ -104,7 +104,10 @@ COPY config/ee_unlock.rb /app/config/initializers/ee_unlock.rb
 COPY patches/zz_final_unlock.rb /app/config/initializers/zz_final_unlock.rb
 COPY patches/check_new_versions_job_patch.rb /app/config/initializers/check_new_versions_job_patch.rb
 COPY patches/_user.json.jbuilder /app/app/views/api/v1/models/_user.json.jbuilder
-COPY patches/brand-assets/*.svg /app/public/brand-assets/ 2>/dev/null || true
+
+# Copiar brand assets se existirem
+RUN mkdir -p /app/public/brand-assets
+COPY patches/brand-assets/*.svg /app/public/brand-assets/ || echo "⚠️  No custom brand assets found, using defaults"
 
 # Pré-compilar assets
 RUN SECRET_KEY_BASE=placeholder bundle exec rails assets:precompile
@@ -112,24 +115,18 @@ RUN SECRET_KEY_BASE=placeholder bundle exec rails assets:precompile
 # Criar diretórios necessários
 RUN mkdir -p /app/storage /app/public /app/tmp/pids
 
+# Copiar entrypoint script
+COPY docker/entrypoints/rails.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 # Expor porta
 EXPOSE 3000
 
 # Volume para storage
 VOLUME ["/app/storage", "/app/public"]
 
-# Copiar script de entrypoint se existir, senão criar um simples
-RUN if [ ! -f docker/entrypoints/rails.sh ]; then \
-      mkdir -p docker/entrypoints && \
-      echo '#!/bin/bash' > docker/entrypoints/rails.sh && \
-      echo 'set -e' >> docker/entrypoints/rails.sh && \
-      echo 'bundle exec rails db:chatwoot_prepare || true' >> docker/entrypoints/rails.sh && \
-      echo 'exec "$@"' >> docker/entrypoints/rails.sh && \
-      chmod +x docker/entrypoints/rails.sh; \
-    fi
-
 # Entrypoint e comando padrão
-ENTRYPOINT ["docker/entrypoints/rails.sh"]
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["bundle", "exec", "rails", "s", "-p", "3000", "-b", "0.0.0.0"]
 
 # Health check

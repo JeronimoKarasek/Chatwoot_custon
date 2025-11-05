@@ -3,9 +3,8 @@
 .gitignore
 .github
 
-# Documentation
+# Documentation (not needed in image)
 *.md
-!BUILD_AND_DEPLOY.md
 
 # Logs
 *.log
@@ -25,7 +24,7 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Scripts (não necessários na imagem)
+# Scripts (not needed in image)
 build_image.sh
 push_to_ghcr.sh
 quick_push.sh
