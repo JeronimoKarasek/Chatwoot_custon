@@ -14,9 +14,70 @@
 - ✅ **Active Storage** configurado com S3
 - ✅ **Installation configs** personalizados
 - ✅ **Localização PT-BR** completa
+- ✅ **Features Enterprise desbloqueadas**
 - ✅ **SMTP configurado** para envio de emails
 - ✅ **SSL/TLS habilitado**
 - ✅ **Configurações de produção** otimizadas
+
+## 🚀 Início Rápido
+
+### 📖 Documentação Completa
+
+**[➡️ Guia Completo de Build e Deploy](BUILD_AND_DEPLOY.md)**
+
+Este guia inclui:
+- ✅ Como fazer build da imagem Docker
+- ✅ Como publicar no GitHub Container Registry
+- ✅ Como fazer deploy no Portainer
+- ✅ Configuração de SSL/HTTPS
+- ✅ Backup e restore
+- ✅ Solução de problemas
+
+### ⚡ Instalação Rápida (3 Passos)
+
+#### 1. Build da Imagem
+
+```bash
+git clone https://github.com/JeronimoKarasek/Chatwoot_custon.git
+cd Chatwoot_custon
+./build_image.sh
+```
+
+#### 2. Push para Registry
+
+```bash
+# Gere um token em: https://github.com/settings/tokens/new
+# Permissões: write:packages, read:packages
+
+./push_to_ghcr.sh 'seu_github_token_aqui'
+```
+
+#### 3. Deploy no Portainer
+
+1. Acesse seu Portainer
+2. Vá em **Stacks** → **Add stack**
+3. Copie o conteúdo de `portainer-stack.yml`
+4. Configure as variáveis (DATABASE_URL, SECRET_KEY_BASE, etc.)
+5. Clique em **Deploy**
+
+🎉 **Pronto!** Seu Chatwoot estará disponível em `http://seu-servidor:3000`
+
+## 🐳 Imagem Docker
+
+### Usar Imagem Pré-Construída
+
+```bash
+docker pull ghcr.io/jeronimokarasek/chatwoot_custon:latest
+```
+
+### Informações da Imagem
+
+- **Registry**: GitHub Container Registry (GHCR)
+- **Nome**: `ghcr.io/jeronimokarasek/chatwoot_custon`
+- **Tags disponíveis**: `latest`, `v4.7.0`
+- **Base**: Ruby 3.2 + Node.js 20
+- **Tamanho**: ~2.5GB
+- **Arquitetura**: AMD64
 
 ## 🏗️ Arquitetura
 
@@ -33,48 +94,6 @@
                        │   Cache/Queue   │
                        │   Port: 6379    │
                        └─────────────────┘
-```
-
-## 🐳 Imagem Docker
-
-**Imagem disponível em:** `ghcr.io/jeronimokarasek/chatwoot-custom:v4.7.0`
-
-**Tamanho:** ~2.47GB  
-**Base:** Ruby 3.4.4 + Node.js 23.7.0  
-**Arquitetura:** AMD64  
-
-## 🚀 Instalação Rápida
-
-### Opção 1: Docker Compose (Recomendado)
-
-```bash
-# Clone o repositório
-git clone https://github.com/JeronimoKarasek/Chatwoot_custon.git
-cd Chatwoot_custon
-
-# Inicie os serviços
-docker-compose up -d
-```
-
-### Opção 2: Portainer Stack
-
-1. Acesse seu Portainer
-2. Vá em **Stacks** → **Add stack**
-3. Copie o conteúdo do arquivo `docker-compose.yml`
-4. Configure as variáveis de ambiente
-5. Deploy
-
-### Opção 3: Docker Run
-
-```bash
-docker run -d \
-  --name chatwoot-app \
-  -p 3000:3000 \
-  -e DATABASE_URL="postgresql://user:password@host:port/database" \
-  -e REDIS_URL="redis://redis:6379" \
-  -e SECRET_KEY_BASE="seu-secret-key-base" \
-  -e FRONTEND_URL="https://seu-dominio.com" \
-  ghcr.io/jeronimokarasek/chatwoot-custom:v4.7.0
 ```
 
 ## ⚙️ Configuração
