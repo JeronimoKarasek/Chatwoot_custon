@@ -90,6 +90,38 @@ docker service ls | grep chat
 docker service logs -f chatv44_chatwoot_app
 ```
 
+### Corrigir conexão com Supabase (POOLER)
+
+Use sempre o Pooler (PgBouncer) da Supabase com estas regras:
+
+- Host: aws-0-sa-east-1.pooler.supabase.com (note o “aws-0”)
+- Porta: 6543
+- SSL: sslmode=require
+- Prepared statements: desativados (prepared_statements=false)
+
+Exemplo de DATABASE_URL válido (com as credenciais do seu projeto):
+
+```
+postgresql://postgres.vfhzimozqsbdqknkncny:hdOy1DBebZNDZGlu@aws-0-sa-east-1.pooler.supabase.com:6543/postgres?sslmode=require&prepared_statements=false
+```
+
+Aplicar no serviço (app e sidekiq):
+
+```bash
+docker service update \
+   --env-add DATABASE_URL="postgresql://postgres.vfhzimozqsbdqknkncny:hdOy1DBebZNDZGlu@aws-0-sa-east-1.pooler.supabase.com:6543/postgres?sslmode=require&prepared_statements=false" \
+   chatv44_chatwoot_app
+
+docker service update \
+   --env-add DATABASE_URL="postgresql://postgres.vfhzimozqsbdqknkncny:hdOy1DBebZNDZGlu@aws-0-sa-east-1.pooler.supabase.com:6543/postgres?sslmode=require&prepared_statements=false" \
+   chatv44_chatwoot_sidekiq
+```
+
+Sinais de configuração incorreta:
+
+- Usar host “aws-1-…” ou porta 5432 com o Pooler → pode cair.
+- Erro: `PG::ProtocolViolation: bind message supplies N parameters, but prepared statement "a2" requires M` → faltou `prepared_statements=false` (exigência do Pooler em transaction pooling).
+
 ### Reiniciar serviço (se necessário):
 ```bash
 docker service update --force chatv44_chatwoot_app

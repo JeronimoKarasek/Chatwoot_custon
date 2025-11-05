@@ -1,0 +1,17 @@
+# Dockerfile de overlay: aplica patches sobre a imagem base já funcional
+FROM ghcr.io/jeronimokarasek/chatwoot_custon:latest
+
+LABEL org.opencontainers.image.source="https://github.com/JeronimoKarasek/Chatwoot_custon"
+LABEL org.opencontainers.image.description="Chatwoot custom com todos os recursos enterprise desbloqueados e correções de estabilidade"
+
+ENV CHATWOOT_EDITION=ee \
+    CW_EDITION=ee \
+    CHATWOOT_ENABLE_ACCOUNT_LEVEL_FEATURES=true
+
+# Patches em runtime
+COPY patches/zz_final_unlock.rb /app/config/initializers/zz_final_unlock.rb
+COPY patches/check_new_versions_job_patch.rb /app/config/initializers/check_new_versions_job_patch.rb
+COPY patches/_user.json.jbuilder /app/app/views/api/v1/models/_user.json.jbuilder
+COPY patches/brand-assets/*.svg /app/public/brand-assets/
+
+# Nenhuma etapa adicional necessária; inicializadores serão carregados no boot
