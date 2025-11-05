@@ -26,9 +26,9 @@ services:
       redis:
         condition: service_healthy
     environment:
-      # Database - Supabase PostgreSQL
-      # IMPORTANTE: Conexão via Supabase Pooler
-      DATABASE_URL: postgresql://postgres.vfhzimozqsbdqknkncny:UxQSuIJlbEmdf0X7@aws-0-sa-east-1.pooler.supabase.com:6543/postgres
+      # Database - Supabase PostgreSQL (Session Pooler IPv4)
+      # Formato correto: postgres.<PROJECT_REF>:PASSWORD@aws-0-<REGION>.pooler.supabase.com:5432
+      DATABASE_URL: postgresql://postgres.vfhzimozqsbdqknkncny:UxQSuIJlbEmdf0X7@aws-0-sa-east-1.pooler.supabase.com:5432/postgres?sslmode=require&prepared_statements=false
       
       # Redis
       REDIS_URL: redis://redis:6379
@@ -121,8 +121,8 @@ services:
         condition: service_healthy
     command: ["bundle", "exec", "sidekiq", "-C", "config/sidekiq.yml"]
     environment:
-      # Database - Supabase PostgreSQL
-      DATABASE_URL: postgresql://postgres.vfhzimozqsbdqknkncny:UxQSuIJlbEmdf0X7@aws-0-sa-east-1.pooler.supabase.com:6543/postgres
+      # Database - Supabase PostgreSQL (Session Pooler IPv4)
+      DATABASE_URL: postgresql://postgres.vfhzimozqsbdqknkncny:UxQSuIJlbEmdf0X7@aws-0-sa-east-1.pooler.supabase.com:5432/postgres?sslmode=require&prepared_statements=false
       
       # Redis
       REDIS_URL: redis://redis:6379
