@@ -85,6 +85,9 @@ EXPOSE 3000
 # Volume para storage
 VOLUME ["/app/storage", "/app/public"]
 
+# Copiar patch de desbloqueio de features EE
+COPY config/ee_unlock.rb /app/config/initializers/ee_unlock.rb
+
 # Entrypoint e comando padrão
 ENTRYPOINT ["docker/entrypoints/rails.sh"]
 CMD ["bundle", "exec", "rails", "s", "-p", "3000", "-b", "0.0.0.0"]

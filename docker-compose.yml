@@ -39,7 +39,7 @@ services:
       retries: 5
 
   chatwoot-app:
-    image: ghcr.io/jeronimokarasek/chatwoot-custom:v4.7.0
+    image: ghcr.io/jeronimokarasek/chatwoot_custon:latest
     container_name: chatwoot-app
     restart: unless-stopped
     depends_on:
@@ -134,7 +134,7 @@ services:
       start_period: 60s
 
   chatwoot-sidekiq:
-    image: ghcr.io/jeronimokarasek/chatwoot-custom:v4.7.0
+    image: ghcr.io/jeronimokarasek/chatwoot_custon:latest
     container_name: chatwoot-sidekiq
     restart: unless-stopped
     depends_on:

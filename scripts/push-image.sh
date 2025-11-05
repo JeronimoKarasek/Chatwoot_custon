@@ -27,19 +27,21 @@ REGISTRY="ghcr.io"
 USERNAME="jeronimokarasek"
 REPO_NAME="chatwoot_custon"
 VERSION="v4.7.0"
+UNLOCKED_IMAGE="forochat/chatwoot-premium:v4.7.0-unlocked"
 
-echo "📦 Verificando se a imagem local existe..."
-if ! docker image inspect "forochat/chatwoot-premium:${VERSION}" >/dev/null 2>&1; then
-    echo "❌ Erro: Imagem forochat/chatwoot-premium:${VERSION} não encontrada"
-    echo "   Execute primeiro: docker images | grep chatwoot"
+echo "📦 Verificando se as imagens locais existem..."
+if ! docker image inspect "${UNLOCKED_IMAGE}" >/dev/null 2>&1; then
+    echo "❌ Erro: Imagem ${UNLOCKED_IMAGE} não encontrada"
+    echo "   Execute primeiro: ./scripts/build-unlocked-image.sh"
     exit 1
 fi
 
-echo "✅ Imagem local encontrada!"
+echo "✅ Imagem desbloqueada encontrada!"
 
 echo "🏷️ Criando tags para GHCR..."
-docker tag "forochat/chatwoot-premium:${VERSION}" "${REGISTRY}/${USERNAME}/${REPO_NAME}:${VERSION}"
-docker tag "forochat/chatwoot-premium:${VERSION}" "${REGISTRY}/${USERNAME}/${REPO_NAME}:latest"
+docker tag "${UNLOCKED_IMAGE}" "${REGISTRY}/${USERNAME}/${REPO_NAME}:${VERSION}"
+docker tag "${UNLOCKED_IMAGE}" "${REGISTRY}/${USERNAME}/${REPO_NAME}:latest"
+docker tag "${UNLOCKED_IMAGE}" "${REGISTRY}/${USERNAME}/${REPO_NAME}:unlocked"
 
 echo "🔐 Fazendo login no GitHub Container Registry..."
 echo "${GITHUB_PAT}" | docker login ${REGISTRY} -u ${USERNAME} --password-stdin
@@ -54,15 +56,19 @@ fi
 echo "📤 Fazendo upload da imagem ${VERSION}..."
 docker push "${REGISTRY}/${USERNAME}/${REPO_NAME}:${VERSION}"
 
-echo "📤 Fazendo upload da imagem latest..."
+echo "📤 Fazendo upload da imagem latest (desbloqueada)..."
 docker push "${REGISTRY}/${USERNAME}/${REPO_NAME}:latest"
+
+echo "📤 Fazendo upload da imagem unlocked..."
+docker push "${REGISTRY}/${USERNAME}/${REPO_NAME}:unlocked"
 
 echo ""
 echo "🎉 Upload concluído com sucesso!"
 echo ""
-echo "📋 Informações da imagem:"
+echo "📋 Informações das imagens:"
 echo "   Repository: ghcr.io/${USERNAME}/${REPO_NAME}"
-echo "   Tags: ${VERSION}, latest"
+echo "   Tags: ${VERSION}, latest, unlocked"
+echo "   Features: ✅ TODAS AS FEATURES EE DESBLOQUEADAS"
 echo "   Tamanho: ~2.47GB"
 echo ""
 echo "🐳 Para usar a imagem:"

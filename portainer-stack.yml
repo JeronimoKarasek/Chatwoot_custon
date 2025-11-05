@@ -38,7 +38,7 @@ services:
           memory: 256M
 
   chatwoot:
-    image: ghcr.io/jeronimokarasek/chatwoot-custom:v4.7.0
+    image: ghcr.io/jeronimokarasek/chatwoot_custon:latest
     restart: unless-stopped
     depends_on:
       - postgres
@@ -91,7 +91,7 @@ services:
           memory: 1G
 
   sidekiq:
-    image: ghcr.io/jeronimokarasek/chatwoot-custom:v4.7.0
+    image: ghcr.io/jeronimokarasek/chatwoot_custon:latest
     restart: unless-stopped
     depends_on:
       - postgres
