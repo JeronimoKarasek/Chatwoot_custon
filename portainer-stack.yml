@@ -1,0 +1,146 @@
+# Stack para Portainer - Chatwoot Premium v4.7.0
+# Copie e cole este conteúdo no Portainer -> Stacks -> Add stack
+
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: chatwoot
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: TqgcYbFD5EKGAQuo
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - chatwoot
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - chatwoot
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  chatwoot:
+    image: ghcr.io/jeronimokarasek/chatwoot-custom:v4.7.0
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      # ===== CONFIGURAÇÕES OBRIGATÓRIAS =====
+      DATABASE_URL: postgresql://postgres:TqgcYbFD5EKGAQuo@postgres:5432/chatwoot?sslmode=disable&prepared_statements=false
+      REDIS_URL: redis://redis:6379
+      SECRET_KEY_BASE: 123458bb7ef6402f6a8bcf5d3be54321-MUDE-ESTA-CHAVE
+      FRONTEND_URL: https://chat.seu-dominio.com
+      
+      # ===== CONFIGURAÇÕES DA INSTALAÇÃO =====
+      INSTALLATION_NAME: MeuChatwoot
+      DEFAULT_LOCALE: pt_BR
+      ENABLE_ACCOUNT_SIGNUP: "true"
+      
+      # ===== CONFIGURAÇÕES DE EMAIL =====
+      SMTP_ADDRESS: smtp.gmail.com
+      SMTP_PORT: 587
+      SMTP_USERNAME: seu-email@gmail.com
+      SMTP_PASSWORD: sua-senha-de-app
+      MAILER_SENDER_EMAIL: Chatwoot <seu-email@gmail.com>
+      
+      # ===== CONFIGURAÇÕES AWS S3 (OPCIONAL) =====
+      ACTIVE_STORAGE_SERVICE: amazon
+      AWS_ACCESS_KEY_ID: sua-access-key
+      AWS_SECRET_ACCESS_KEY: sua-secret-key
+      AWS_REGION: sa-east-1
+      S3_BUCKET_NAME: seu-bucket
+      
+      # ===== CONFIGURAÇÕES INTERNAS =====
+      RAILS_ENV: production
+      NODE_ENV: production
+      CW_EDITION: ee
+      CHATWOOT_ENABLE_ACCOUNT_LEVEL_FEATURES: "true"
+      USE_INBOX_AVATAR_FOR_BOT: "true"
+      RAILS_LOG_TO_STDOUT: "true"
+      RAILS_SERVE_STATIC_FILES: "true"
+    ports:
+      - "3000:3000"
+    volumes:
+      - app_storage:/app/storage
+    networks:
+      - chatwoot
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+
+  sidekiq:
+    image: ghcr.io/jeronimokarasek/chatwoot-custom:v4.7.0
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - redis
+    command: ["bundle", "exec", "sidekiq", "-C", "config/sidekiq.yml"]
+    environment:
+      DATABASE_URL: postgresql://postgres:TqgcYbFD5EKGAQuo@postgres:5432/chatwoot?sslmode=disable&prepared_statements=false
+      REDIS_URL: redis://redis:6379
+      SECRET_KEY_BASE: 123458bb7ef6402f6a8bcf5d3be54321-MUDE-ESTA-CHAVE
+      RAILS_ENV: production
+      CW_EDITION: ee
+    volumes:
+      - app_storage:/app/storage
+    networks:
+      - chatwoot
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+volumes:
+  postgres_data:
+  redis_data:
+  app_storage:
+
+networks:
+  chatwoot:
+    driver: bridge
+
+# =====================================================
+# INSTRUÇÕES PARA USO NO PORTAINER:
+# =====================================================
+#
+# 1. Acesse seu Portainer
+# 2. Vá em "Stacks" → "Add stack"
+# 3. Dê um nome: "chatwoot-premium"
+# 4. Cole este conteúdo na área "Web editor"
+# 5. IMPORTANTE: Edite as seguintes variáveis:
+#    - SECRET_KEY_BASE: Gere uma chave única
+#    - FRONTEND_URL: Seu domínio
+#    - SMTP_*: Seus dados de email
+#    - AWS_*: Seus dados do S3 (opcional)
+# 6. Clique em "Deploy the stack"
+# 7. Aguarde ~2-3 minutos para inicialização
+# 8. Acesse: http://seu-servidor:3000
+#
+# IMPORTANTE: Configure um proxy reverso (NGINX/Traefik)
+# para SSL e domínio customizado em produção!
+#
+# =====================================================

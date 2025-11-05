@@ -1,0 +1,187 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: chatwoot-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: chatwoot
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-TqgcYbFD5EKGAQuo}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - chatwoot-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: chatwoot-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - chatwoot-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  chatwoot-app:
+    image: ghcr.io/jeronimokarasek/chatwoot-custom:v4.7.0
+    container_name: chatwoot-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Database
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-TqgcYbFD5EKGAQuo}@postgres:5432/chatwoot?sslmode=disable&prepared_statements=false
+      
+      # Redis
+      REDIS_URL: redis://redis:6379
+      
+      # Security
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:-123458bb7ef6402f6a8bcf5d3be54321}
+      FORCE_SSL: ${FORCE_SSL:-false}
+      
+      # Frontend
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      
+      # Rails
+      RAILS_ENV: production
+      RAILS_LOG_TO_STDOUT: "true"
+      RAILS_SERVE_STATIC_FILES: "true"
+      RAILS_MAX_THREADS: ${RAILS_MAX_THREADS:-7}
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-4}
+      
+      # Installation
+      INSTALLATION_NAME: ${INSTALLATION_NAME:-FocoChat}
+      INSTALLATION_ENV: docker
+      DEFAULT_LOCALE: ${DEFAULT_LOCALE:-pt_BR}
+      
+      # Features
+      ENABLE_ACCOUNT_SIGNUP: ${ENABLE_ACCOUNT_SIGNUP:-true}
+      CHATWOOT_ENABLE_ACCOUNT_LEVEL_FEATURES: ${CHATWOOT_ENABLE_ACCOUNT_LEVEL_FEATURES:-true}
+      USE_INBOX_AVATAR_FOR_BOT: ${USE_INBOX_AVATAR_FOR_BOT:-true}
+      DISABLE_AGENT_CONVERSATION_VIEW_OTHER: ${DISABLE_AGENT_CONVERSATION_VIEW_OTHER:-false}
+      HIDE_ALL_CHATS_FROM_AGENT: ${HIDE_ALL_CHATS_FROM_AGENT:-true}
+      
+      # Email/SMTP (opcionais)
+      SMTP_ADDRESS: ${SMTP_ADDRESS:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_DOMAIN: ${SMTP_DOMAIN:-gmail.com}
+      SMTP_USERNAME: ${SMTP_USERNAME}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      SMTP_AUTHENTICATION: ${SMTP_AUTHENTICATION:-login}
+      SMTP_ENABLE_STARTTLS_AUTO: ${SMTP_ENABLE_STARTTLS_AUTO:-true}
+      SMTP_OPENSSL_VERIFY_MODE: ${SMTP_OPENSSL_VERIFY_MODE:-peer}
+      MAILER_SENDER_EMAIL: ${MAILER_SENDER_EMAIL}
+      MAILER_INBOUND_EMAIL_DOMAIN: ${MAILER_INBOUND_EMAIL_DOMAIN}
+      
+      # AWS S3 (opcionais)
+      ACTIVE_STORAGE_SERVICE: ${ACTIVE_STORAGE_SERVICE:-local}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: ${AWS_REGION:-sa-east-1}
+      S3_BUCKET_NAME: ${S3_BUCKET_NAME}
+      DIRECT_UPLOADS_ENABLED: ${DIRECT_UPLOADS_ENABLED:-true}
+      
+      # Performance
+      SIDEKIQ_CONCURRENCY: ${SIDEKIQ_CONCURRENCY:-20}
+      RACK_TIMEOUT_SERVICE_TIMEOUT: ${RACK_TIMEOUT_SERVICE_TIMEOUT:-0}
+      ENABLE_RACK_ATTACK: ${ENABLE_RACK_ATTACK:-false}
+      
+      # Hub
+      CHATWOOT_HUB_URL: ${CHATWOOT_HUB_URL:-https://inovanode.com.br}
+      
+      # Edition
+      CW_EDITION: ee
+      
+      # Node
+      NODE_ENV: production
+      EXECJS_RUNTIME: Disabled
+      
+      # Bundle
+      BUNDLE_WITHOUT: development:test
+      BUNDLE_FORCE_RUBY_PLATFORM: "1"
+      BUNDLE_PATH: /gems
+    ports:
+      - "3000:3000"
+    volumes:
+      - app_storage:/app/storage
+      - app_public:/app/public
+    networks:
+      - chatwoot-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  chatwoot-sidekiq:
+    image: ghcr.io/jeronimokarasek/chatwoot-custom:v4.7.0
+    container_name: chatwoot-sidekiq
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["bundle", "exec", "sidekiq", "-C", "config/sidekiq.yml"]
+    environment:
+      # Database
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-TqgcYbFD5EKGAQuo}@postgres:5432/chatwoot?sslmode=disable&prepared_statements=false
+      
+      # Redis
+      REDIS_URL: redis://redis:6379
+      
+      # Security
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:-123458bb7ef6402f6a8bcf5d3be54321}
+      
+      # Rails
+      RAILS_ENV: production
+      RAILS_LOG_TO_STDOUT: "true"
+      
+      # Performance
+      SIDEKIQ_CONCURRENCY: ${SIDEKIQ_CONCURRENCY:-20}
+      
+      # Edition
+      CW_EDITION: ee
+      
+      # Bundle
+      BUNDLE_WITHOUT: development:test
+      BUNDLE_FORCE_RUBY_PLATFORM: "1"
+      BUNDLE_PATH: /gems
+    volumes:
+      - app_storage:/app/storage
+    networks:
+      - chatwoot-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  app_storage:
+    driver: local
+  app_public:
+    driver: local
+
+networks:
+  chatwoot-network:
+    driver: bridge
