@@ -1,44 +1,26 @@
 version: '3.8'
 
 services:
-  redis:
-    image: redis:7-alpine
-    container_name: chatwoot-redis
-    restart: unless-stopped
-    command: redis-server --appendonly yes
-    volumes:
-      - redis_data:/data
-    ports:
-      - "6379:6379"
-    networks:
-      - chatwoot-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-
   chatwoot-app:
     image: ghcr.io/jeronimokarasek/chatwoot_custon:latest
     container_name: chatwoot-app
     restart: unless-stopped
-    depends_on:
-      redis:
-        condition: service_healthy
+    ports:
+      - "3000:3000"
     environment:
-      # Database - Supabase PostgreSQL (Session Pooler IPv4)
-      # Formato correto: postgres.<PROJECT_REF>:PASSWORD@aws-0-<REGION>.pooler.supabase.com:5432
-      DATABASE_URL: postgresql://postgres.vfhzimozqsbdqknkncny:UxQSuIJlbEmdf0X7@aws-0-sa-east-1.pooler.supabase.com:5432/postgres?sslmode=require&prepared_statements=false
+      # Database - Supabase PostgreSQL  
+      # Usando formato EXATO que funciona: porta 6543, prepared_statements=false
+      DATABASE_URL: postgresql://postgres.vfhzimozqsbdqknkncny:UxQSuIJlbEmdf0X7@aws-0-sa-east-1.pooler.supabase.com:6543/postgres?sslmode=require&prepared_statements=false
       
-      # Redis
-      REDIS_URL: redis://redis:6379
+      # Redis - Usando Redis do Swarm via rede compartilhada
+      REDIS_URL: redis://redis_redis:6379
       
       # Security
       SECRET_KEY_BASE: ${SECRET_KEY_BASE:-123458bb7ef6402f6a8bcf5d3be54321}
       FORCE_SSL: ${FORCE_SSL:-false}
       
       # Frontend
-      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      FRONTEND_URL: ${FRONTEND_URL:-https://chat.premiumleads.com.br}
       
       # Rails
       RAILS_ENV: production
@@ -98,13 +80,11 @@ services:
       BUNDLE_WITHOUT: development:test
       BUNDLE_FORCE_RUBY_PLATFORM: "1"
       BUNDLE_PATH: /gems
-    ports:
-      - "3000:3000"
     volumes:
       - app_storage:/app/storage
       - app_public:/app/public
     networks:
-      - chatwoot-network
+      - network_public
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 30s
@@ -116,16 +96,13 @@ services:
     image: ghcr.io/jeronimokarasek/chatwoot_custon:latest
     container_name: chatwoot-sidekiq
     restart: unless-stopped
-    depends_on:
-      redis:
-        condition: service_healthy
     command: ["bundle", "exec", "sidekiq", "-C", "config/sidekiq.yml"]
     environment:
-      # Database - Supabase PostgreSQL (Session Pooler IPv4)
-      DATABASE_URL: postgresql://postgres.vfhzimozqsbdqknkncny:UxQSuIJlbEmdf0X7@aws-0-sa-east-1.pooler.supabase.com:5432/postgres?sslmode=require&prepared_statements=false
+      # Database - Supabase PostgreSQL (porta 6543)
+      DATABASE_URL: postgresql://postgres.vfhzimozqsbdqknkncny:UxQSuIJlbEmdf0X7@aws-0-sa-east-1.pooler.supabase.com:6543/postgres?sslmode=require&prepared_statements=false
       
-      # Redis
-      REDIS_URL: redis://redis:6379
+      # Redis - Usando Redis do Swarm via rede compartilhada
+      REDIS_URL: redis://redis_redis:6379
       
       # Security
       SECRET_KEY_BASE: ${SECRET_KEY_BASE:-123458bb7ef6402f6a8bcf5d3be54321}
@@ -147,16 +124,15 @@ services:
     volumes:
       - app_storage:/app/storage
     networks:
-      - chatwoot-network
+      - network_public
 
 volumes:
-  redis_data:
-    driver: local
   app_storage:
     driver: local
   app_public:
     driver: local
 
 networks:
-  chatwoot-network:
-    driver: bridge
+  network_public:
+    name: chatwoot-network
+    external: true
