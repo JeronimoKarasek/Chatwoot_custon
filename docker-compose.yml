@@ -1,26 +1,6 @@
 version: '3.8'
 
 services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: chatwoot-postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: chatwoot
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-TqgcYbFD5EKGAQuo}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    networks:
-      - chatwoot-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-
   redis:
     image: redis:7-alpine
     container_name: chatwoot-redis
@@ -43,13 +23,12 @@ services:
     container_name: chatwoot-app
     restart: unless-stopped
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     environment:
-      # Database
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-TqgcYbFD5EKGAQuo}@postgres:5432/chatwoot?sslmode=disable&prepared_statements=false
+      # Database - Supabase PostgreSQL
+      # IMPORTANTE: Conexão via Supabase Pooler
+      DATABASE_URL: postgresql://postgres.vfhzimozqsbdqknkncny:UxQSuIJlbEmdf0X7@aws-0-sa-east-1.pooler.supabase.com:6543/postgres
       
       # Redis
       REDIS_URL: redis://redis:6379
@@ -138,14 +117,12 @@ services:
     container_name: chatwoot-sidekiq
     restart: unless-stopped
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     command: ["bundle", "exec", "sidekiq", "-C", "config/sidekiq.yml"]
     environment:
-      # Database
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-TqgcYbFD5EKGAQuo}@postgres:5432/chatwoot?sslmode=disable&prepared_statements=false
+      # Database - Supabase PostgreSQL
+      DATABASE_URL: postgresql://postgres.vfhzimozqsbdqknkncny:UxQSuIJlbEmdf0X7@aws-0-sa-east-1.pooler.supabase.com:6543/postgres
       
       # Redis
       REDIS_URL: redis://redis:6379
@@ -173,8 +150,6 @@ services:
       - chatwoot-network
 
 volumes:
-  postgres_data:
-    driver: local
   redis_data:
     driver: local
   app_storage:

@@ -1,0 +1,157 @@
+# Dockerfile para customizar logos do Chatwoot
+# Base: Imagem premium com EE unlocked
+FROM ghcr.io/jeronimokarasek/chatwoot_custon:latest
+
+# Metadados
+LABEL maintainer="FocoChat"
+LABEL description="Chatwoot Premium com logos customizadas"
+
+USER root
+
+# Criar diretório temporário para logos customizadas
+RUN mkdir -p /tmp/custom-logos
+
+# Copiar script de substituição de logos
+COPY <<'EOF' /tmp/replace-logos.sh
+#!/bin/bash
+set -e
+
+echo "🎨 Substituindo logos do Chatwoot..."
+
+# Diretórios onde as logos estão
+LOGO_DIRS=(
+    "/app/app/javascript/dashboard/assets/images"
+    "/app/app/javascript/widget/assets/images"
+    "/app/app/javascript/design-system/images"
+    "/app/public"
+    "/app/public/packs"
+)
+
+# Se houver logo customizada, substituir
+if [ -f "/tmp/custom-logos/logo.png" ]; then
+    echo "📸 Aplicando logo.png customizada..."
+    
+    # Logo principal (design system)
+    cp /tmp/custom-logos/logo.png /app/app/javascript/design-system/images/logo.png
+    
+    # Logo SVG (converter de PNG para SVG ou usar placeholder)
+    cp /tmp/custom-logos/logo.png /app/app/javascript/widget/assets/images/logo.png || true
+    
+    # Logo do dashboard
+    cp /tmp/custom-logos/logo.png /app/app/javascript/dashboard/assets/images/logo.png || true
+    
+    echo "✅ Logo principal aplicada"
+fi
+
+# Logo escura
+if [ -f "/tmp/custom-logos/logo-dark.png" ]; then
+    echo "🌙 Aplicando logo-dark.png..."
+    cp /tmp/custom-logos/logo-dark.png /app/app/javascript/design-system/images/logo-dark.png
+    echo "✅ Logo escura aplicada"
+fi
+
+# Favicon
+if [ -f "/tmp/custom-logos/favicon.png" ]; then
+    echo "🔖 Aplicando favicon..."
+    
+    # Gerar diferentes tamanhos de favicon
+    if command -v convert &> /dev/null; then
+        convert /tmp/custom-logos/favicon.png -resize 16x16 /app/public/packs/favicon-16x16.png
+        convert /tmp/custom-logos/favicon.png -resize 96x96 /app/public/packs/favicon-96x96.png
+        convert /tmp/custom-logos/favicon.png -resize 512x512 /app/public/packs/favicon-512x512.png
+        convert /tmp/custom-logos/favicon.png -resize 512x512 /app/public/favicon-512x512.png
+        echo "✅ Favicons gerados em múltiplos tamanhos"
+    else
+        # Se ImageMagick não disponível, copiar diretamente
+        cp /tmp/custom-logos/favicon.png /app/public/favicon-512x512.png
+        cp /tmp/custom-logos/favicon.png /app/public/packs/favicon-512x512.png
+        echo "⚠️  ImageMagick não disponível, favicon copiado sem redimensionamento"
+    fi
+fi
+
+# Ajustar permissões
+find /app/app/javascript -type f -name "*.png" -exec chmod 644 {} \;
+find /app/public -type f -name "*.png" -exec chmod 644 {} \;
+
+echo "🎉 Logos aplicadas com sucesso!"
+EOF
+
+RUN chmod +x /tmp/replace-logos.sh
+
+# Instalar ImageMagick para conversão de imagens (opcional)
+RUN apk add --no-cache imagemagick || echo "ImageMagick não instalado"
+
+# Instruções de uso
+COPY <<'EOF' /tmp/INSTRUCOES_LOGO.md
+# Como usar logos customizadas
+
+## Opção 1: Construir imagem com suas logos
+
+1. Coloque suas logos neste diretório:
+   - `logo.png` - Logo principal (recomendado: 200x50px, fundo transparente)
+   - `logo-dark.png` - Logo para tema escuro (mesmo tamanho)
+   - `favicon.png` - Ícone do navegador (512x512px ou 256x256px)
+
+2. Construa a imagem:
+   ```bash
+   docker build -f Dockerfile.custom-logo -t chatwoot-custom:latest .
+   ```
+
+3. Use no docker-compose.yml:
+   ```yaml
+   chatwoot-app:
+     image: chatwoot-custom:latest
+   ```
+
+## Opção 2: Substituir logos em runtime
+
+Monte um volume com as logos:
+
+```yaml
+chatwoot-app:
+  image: ghcr.io/jeronimokarasek/chatwoot_custon:latest
+  volumes:
+    - ./logos/logo.png:/app/app/javascript/design-system/images/logo.png
+    - ./logos/logo-dark.png:/app/app/javascript/design-system/images/logo-dark.png
+    - ./logos/favicon.png:/app/public/favicon-512x512.png
+```
+
+## Opção 3: Usar variáveis de ambiente (Chatwoot v3+)
+
+Adicione no docker-compose.yml:
+
+```yaml
+environment:
+  LOGO_URL: https://seu-dominio.com/logo.png
+  LOGO_THUMBNAIL_URL: https://seu-dominio.com/favicon.png
+```
+
+## Formatos recomendados:
+
+- **Logo principal**: PNG com fundo transparente
+  - Tamanho: 200x50px (largura x altura)
+  - Resolução: 72 DPI
+  - Formato: PNG-24 com alpha channel
+
+- **Logo dark mode**: PNG com fundo transparente
+  - Mesmo tamanho da logo principal
+  - Cores ajustadas para fundo escuro
+
+- **Favicon**: PNG quadrado
+  - Tamanho: 512x512px (será redimensionado automaticamente)
+  - Formato: PNG com fundo transparente ou sólido
+
+## Verificar se aplicou:
+
+```bash
+docker exec chatwoot-app ls -lh /app/app/javascript/design-system/images/
+```
+EOF
+
+# Manter entrypoint original
+USER chatwoot
+WORKDIR /app
+
+# Executar script de substituição na inicialização
+ENTRYPOINT ["/bin/sh", "-c", "/tmp/replace-logos.sh && exec docker-entrypoint.sh \"$@\"", "--"]
+CMD ["bundle", "exec", "rails", "server", "-b", "0.0.0.0"]
