@@ -177,7 +177,7 @@ Rails.application.config.after_initialize do
         end
         
         def max_limit(resource = nil)
-          Float::INFINITY
+          999999
         end
         
         def plan
