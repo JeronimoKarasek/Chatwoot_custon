@@ -1,0 +1,42 @@
+# Git
+.git
+.gitignore
+.github
+
+# Documentation (not needed in image)
+*.md
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+*.tmp
+
+# OS files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Scripts (not needed in image)
+build_image.sh
+push_to_ghcr.sh
+quick_push.sh
+
+# Old configs
+.env.example
+.env.production
+.env.supabase
+.env
+
+# Other Dockerfiles
+Dockerfile.custom-logo
+Dockerfile.unlocked
+docker-compose.yml
+portainer-stack.yml

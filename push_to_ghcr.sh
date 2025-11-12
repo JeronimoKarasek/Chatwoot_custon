@@ -1,12 +1,16 @@
 #!/bin/bash
 
 # Script para fazer push da imagem Chatwoot customizada para o GHCR
-# Uso: ./push_to_ghcr.sh [GITHUB_TOKEN]
+# Uso: ./push_to_ghcr.sh [GITHUB_TOKEN] [TAG]
 
 set -e
 
-IMAGE_NAME="ghcr.io/jeronimokarasek/chatwoot_custon:latest"
-LOCAL_IMAGE="chatwoot_unlocked:v2"
+# Configurações
+REGISTRY="ghcr.io"
+OWNER="jeronimokarasek"
+IMAGE_NAME="chatwoot_custon"
+TAG="${2:-latest}"
+FULL_IMAGE="${REGISTRY}/${OWNER}/${IMAGE_NAME}:${TAG}"
 
 echo "=========================================="
 echo "🚀 Push Chatwoot Custom para GHCR"
@@ -24,7 +28,7 @@ else
     echo ""
     echo "Para gerar um token:"
     echo "1. Acesse: https://github.com/settings/tokens/new"
-    echo "2. Marque: write:packages, read:packages, delete:packages"
+    echo "2. Marque: write:packages, read:packages"
     echo "3. Gere o token e execute:"
     echo "   export GITHUB_TOKEN='seu_token_aqui'"
     echo "   ./push_to_ghcr.sh"
@@ -36,16 +40,19 @@ fi
 
 echo ""
 echo "📦 Verificando imagem local..."
-if docker image inspect "$LOCAL_IMAGE" >/dev/null 2>&1; then
-    echo "✅ Imagem local encontrada: $LOCAL_IMAGE"
+if docker image inspect "$FULL_IMAGE" >/dev/null 2>&1; then
+    echo "✅ Imagem local encontrada: $FULL_IMAGE"
 else
-    echo "❌ Imagem local não encontrada: $LOCAL_IMAGE"
+    echo "❌ Imagem local não encontrada: $FULL_IMAGE"
+    echo ""
+    echo "💡 Execute primeiro o build:"
+    echo "   ./build_image.sh ${TAG}"
     exit 1
 fi
 
 echo ""
 echo "🔐 Fazendo login no GHCR..."
-echo "$GITHUB_TOKEN" | docker login ghcr.io -u jeronimokarasek --password-stdin
+echo "$GITHUB_TOKEN" | docker login ghcr.io -u "${OWNER}" --password-stdin
 
 if [ $? -eq 0 ]; then
     echo "✅ Login bem sucedido!"
@@ -55,14 +62,11 @@ else
 fi
 
 echo ""
-echo "🏷️  Tagueando imagem..."
-docker tag "$LOCAL_IMAGE" "$IMAGE_NAME"
-echo "✅ Imagem tagueada: $IMAGE_NAME"
-
-echo ""
 echo "⬆️  Fazendo push para GHCR..."
+echo "   Imagem: $FULL_IMAGE"
 echo "   Isso pode levar alguns minutos..."
-docker push "$IMAGE_NAME"
+echo ""
+docker push "$FULL_IMAGE"
 
 if [ $? -eq 0 ]; then
     echo ""
@@ -71,13 +75,17 @@ if [ $? -eq 0 ]; then
     echo "=========================================="
     echo ""
     echo "📦 Imagem disponível em:"
-    echo "   $IMAGE_NAME"
+    echo "   $FULL_IMAGE"
     echo ""
-    echo "🔄 Para atualizar o serviço Swarm:"
-    echo "   docker service update --image $IMAGE_NAME chatv44_chatwoot_app --force"
+    echo "🔄 Para usar em Portainer/Docker Swarm/Compose:"
+    echo "   Use a imagem: $FULL_IMAGE"
     echo ""
     echo "🌐 Visualize em:"
-    echo "   https://github.com/JeronimoKarasek?tab=packages"
+    echo "   https://github.com/${OWNER}/${IMAGE_NAME}/pkgs/container/${IMAGE_NAME}"
+    echo ""
+    echo "📥 Para baixar em outro servidor:"
+    echo "   docker pull $FULL_IMAGE"
+    echo ""
 else
     echo ""
     echo "❌ Falha ao fazer push da imagem!"
