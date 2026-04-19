@@ -1,0 +1,2238 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>
+      <%= @global_config['INSTALLATION_NAME'] %>
+    </title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, user-scalable=0"/>
+    <% if @global_config['DISPLAY_MANIFEST'] %>
+      <meta name="msapplication-TileColor" content="#29a2a7">
+      <meta name="msapplication-TileImage" content="/ms-icon-144x144.png">
+      <meta name="theme-color" content="#29a2a7">
+      <meta name="description" content="<%= @global_config['INSTALLATION_NAME'] %> is a customer support solution that helps companies engage customers over Messenger, Twitter, Telegram, WeChat, Whatsapp. Simply connect your channels and converse with your customers from a single place. Easily add new agents to your system and have them own and resolve conversations with customers. <%= @global_config['INSTALLATION_NAME'] %> also gives you real-time reports to measure your team's performance, canned responses to easily respond to frequently asked questions and private notes for agents to collaborate among themselves.">
+      <% if ENV['IOS_APP_IDENTIFIER'].present? %>
+        <meta name="apple-itunes-app" content='app-id=<%= ENV['IOS_APP_IDENTIFIER'] %>'>
+      <% end %>
+      <link rel="apple-touch-icon" sizes="57x57" href="/apple-icon-57x57.png">
+      <link rel="apple-touch-icon" sizes="60x60" href="/apple-icon-60x60.png">
+      <link rel="apple-touch-icon" sizes="72x72" href="/apple-icon-72x72.png">
+      <link rel="apple-touch-icon" sizes="76x76" href="/apple-icon-76x76.png">
+      <link rel="apple-touch-icon" sizes="114x114" href="/apple-icon-114x114.png">
+      <link rel="apple-touch-icon" sizes="120x120" href="/apple-icon-120x120.png">
+      <link rel="apple-touch-icon" sizes="144x144" href="/apple-icon-144x144.png">
+      <link rel="apple-touch-icon" sizes="152x152" href="/apple-icon-152x152.png">
+      <link rel="apple-touch-icon" sizes="180x180" href="/apple-icon-180x180.png">
+      <link rel="icon" type="image/png" sizes="192x192"  href="/android-icon-192x192.png">
+      <link class="favicon" rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+      <link class="favicon" rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png">
+      <link class="favicon" rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+      <link rel="manifest" href="/manifest.json">
+    <% end %>
+    <link rel="icon" type="image/png" sizes="512x512" href="<%= @global_config['LOGO_THUMBNAIL'] %>">
+    <%= csrf_meta_tags %>
+    <script>
+      window.chatwootConfig = {
+        hostURL: '<%= ENV.fetch('FRONTEND_URL', '') %>',
+        helpCenterURL: '<%= ENV.fetch('HELPCENTER_URL', '') %>',
+        fbAppId: '<%= @global_config['FB_APP_ID'] %>',
+        instagramAppId: '<%= @global_config['INSTAGRAM_APP_ID'] %>',
+        googleOAuthClientId: '<%= ENV.fetch('GOOGLE_OAUTH_CLIENT_ID', nil) %>',
+        googleOAuthCallbackUrl: '<%= ENV.fetch('GOOGLE_OAUTH_CALLBACK_URL', nil) %>',
+        fbApiVersion: '<%= @global_config['FACEBOOK_API_VERSION'] %>',
+        whatsappAppId: '<%= @global_config['WHATSAPP_APP_ID'] %>',
+        whatsappConfigurationId: '<%= @global_config['WHATSAPP_CONFIGURATION_ID'] %>',
+        whatsappApiVersion: '<%= @global_config['WHATSAPP_API_VERSION'] %>',
+        signupEnabled: '<%= @global_config['ENABLE_ACCOUNT_SIGNUP'] %>',
+        isEnterprise: '<%= @global_config['IS_ENTERPRISE'] %>',
+        <% if @global_config['IS_ENTERPRISE'] %>
+        enterprisePlanName: '<%= @global_config['INSTALLATION_PRICING_PLAN'] %>',
+        <% end %>
+        <% if @global_config['VAPID_PUBLIC_KEY'] %>
+        vapidPublicKey: new Uint8Array(<%= Base64.urlsafe_decode64(@global_config['VAPID_PUBLIC_KEY']).bytes %>),
+        <% end %>
+        enabledLanguages: <%= available_locales_with_name.to_json.html_safe %>,
+        helpUrls: <%= feature_help_urls.to_json.html_safe %>,
+        selectedLocale: '<%= I18n.locale %>'
+      }
+      window.globalConfig = <%= raw @global_config.to_json %>
+      window.browserConfig = {
+        browser_name: '<%= browser.name %>',
+      }
+      window.errorLoggingConfig = '<%= ENV.fetch('SENTRY_FRONTEND_DSN', '') || ENV.fetch('SENTRY_DSN', '') %>'
+    </script>
+    <% if @global_config['ANALYTICS_TOKEN'].present? %>
+    <script>
+      window.analyticsConfig = {
+        token: '<%= @global_config['ANALYTICS_TOKEN'] %>',
+      }
+    </script>
+    <% end %>
+    <%= vite_client_tag %>
+    <%= vite_javascript_tag @application_pack %>
+  </head>
+  <body class="text-slate-600">
+    <script>
+(function() {
+  'use strict';
+  
+  var EVOLUTION_CONFIG = {
+    apiUrl: 'https://evochat4.farolchat.com',
+    apiKey: 'EVOLUTION_TOKEN_REDACTED'
+  };
+  
+  var isInjected = false;
+  var checkInterval = null;
+  
+  function getAccountId() {
+    var match = window.location.pathname.match(/\/accounts\/(\d+)/);
+    return match ? match[1] : null;
+  }
+  
+  function getAuthData() {
+    // Get auth data from cw_d_session_info cookie (same as Chatwoot's auth.js)
+    var cookies = document.cookie.split(';');
+    for (var i = 0; i < cookies.length; i++) {
+      var cookie = cookies[i].trim();
+      if (cookie.indexOf('cw_d_session_info=') === 0) {
+        try {
+          var value = decodeURIComponent(cookie.substring(18));
+          return JSON.parse(value);
+        } catch (e) {
+          console.error('Failed to parse auth cookie:', e);
+        }
+      }
+    }
+    return null;
+  }
+  
+  function authFetch(url, options) {
+    options = options || {};
+    options.headers = options.headers || {};
+    options.headers['Content-Type'] = 'application/json';
+    options.credentials = 'same-origin';
+    
+    // Add Chatwoot auth headers from session cookie
+    var authData = getAuthData();
+    if (authData) {
+      options.headers['access-token'] = authData['access-token'];
+      options.headers['token-type'] = authData['token-type'];
+      options.headers['client'] = authData['client'];
+      options.headers['expiry'] = authData['expiry'];
+      options.headers['uid'] = authData['uid'];
+    }
+    
+    return fetch(url, options);
+  }
+  
+  function showModal(content) {
+    var existingModal = document.getElementById('evo-modal-overlay');
+    if (existingModal) existingModal.remove();
+    
+    var overlay = document.createElement('div');
+    overlay.id = 'evo-modal-overlay';
+    overlay.className = 'evo-modal-overlay';
+    overlay.innerHTML = '<div class="evo-modal">' + content + '</div>';
+    document.body.appendChild(overlay);
+    
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) closeModal();
+    });
+  }
+  
+  function closeModal() {
+    var modal = document.getElementById('evo-modal-overlay');
+    if (modal) modal.remove();
+    if (checkInterval) {
+      clearInterval(checkInterval);
+      checkInterval = null;
+    }
+  }
+  
+  function showEvolutionForm() {
+    var formHtml = [
+      '<h2>Conectar WhatsApp</h2>',
+      '<p>Configure sua conexão com o WhatsApp via QR Code</p>',
+      '<div class="evo-step-indicator">',
+      '  <div class="evo-step active"></div>',
+      '  <div class="evo-step"></div>',
+      '  <div class="evo-step"></div>',
+      '</div>',
+      '<form id="evo-config-form">',
+      '  <div class="evo-form-group">',
+      '    <label for="evo-inbox-name">Nome da Caixa de Entrada *</label>',
+      '    <input type="text" id="evo-inbox-name" placeholder="Ex: WhatsApp Suporte" required />',
+      '  </div>',
+      '  <div class="evo-form-group">',
+      '    <label for="evo-phone">Numero de Telefone (com codigo do pais)</label>',
+      '    <input type="text" id="evo-phone" placeholder="+5511999999999 (opcional)" />',
+      '  </div>',
+      '  <div id="evo-error" class="evo-error" style="display: none;"></div>',
+      '  <div class="evo-btn-group">',
+      '    <button type="button" class="evo-btn evo-btn-secondary" onclick="window.evoCloseModal()">Cancelar</button>',
+      '    <button type="submit" class="evo-btn evo-btn-primary" id="evo-submit-btn">Conectar</button>',
+      '  </div>',
+      '</form>'
+    ].join('\n');
+    
+    showModal(formHtml);
+    
+    document.getElementById('evo-config-form').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      var submitBtn = document.getElementById('evo-submit-btn');
+      var errorDiv = document.getElementById('evo-error');
+      
+      var inboxName = document.getElementById('evo-inbox-name').value.trim();
+      var phone = document.getElementById('evo-phone').value.trim();
+      
+      if (!inboxName) {
+        errorDiv.textContent = 'Preencha o nome da caixa de entrada';
+        errorDiv.style.display = 'block';
+        return;
+      }
+      
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Conectando...';
+      errorDiv.style.display = 'none';
+      
+      var accountId = getAccountId();
+      
+      try {
+        var response = await authFetch('/api/v1/accounts/' + accountId + '/evolution/authorizations', {
+          method: 'POST',
+          body: JSON.stringify({
+            authorization: {
+              api_url: EVOLUTION_CONFIG.apiUrl,
+              admin_token: EVOLUTION_CONFIG.apiKey,
+              inbox_name: inboxName,
+              phone_number: phone
+            }
+          })
+        });
+        
+        var data = await response.json();
+        
+        if (response.ok) {
+          window._evoConfig = {
+            apiUrl: EVOLUTION_CONFIG.apiUrl,
+            apiKey: EVOLUTION_CONFIG.apiKey,
+            inboxName: inboxName,
+            phone: phone
+          };
+          showQRCodeStep(data, window._evoConfig);
+        } else {
+          throw new Error(data.error || 'Erro ao conectar');
+        }
+      } catch (error) {
+        errorDiv.textContent = error.message;
+        errorDiv.style.display = 'block';
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Conectar';
+      }
+    });
+  }
+  
+  function showQRCodeStep(data, config) {
+    var qrHtml = [
+      '<h2>Escaneie o QR Code</h2>',
+      '<p>Abra o WhatsApp no seu celular e escaneie o QR Code abaixo</p>',
+      '<div class="evo-step-indicator">',
+      '  <div class="evo-step completed"></div>',
+      '  <div class="evo-step active"></div>',
+      '  <div class="evo-step"></div>',
+      '</div>',
+      '<div class="evo-qr-container">',
+      '  <div id="evo-qr-box"></div>',
+      '  <p id="evo-qr-status">Aguardando leitura do QR Code...</p>',
+      '</div>',
+      '<div class="evo-btn-group">',
+      '  <button type="button" class="evo-btn evo-btn-secondary" onclick="window.evoSkipConnection()">Pular</button>',
+      '  <button type="button" class="evo-btn evo-btn-secondary" onclick="window.evoRefreshQR()">Atualizar QR</button>',
+      '  <button type="button" class="evo-btn evo-btn-primary" onclick="window.evoCloseModal()">Fechar</button>',
+      '</div>',
+      '<p style="font-size:12px;color:#6b7280;margin-top:12px;text-align:center;">Verificando conexao automaticamente a cada 3 segundos...</p>'
+    ].join('\n');
+    
+    // Store data for skip function
+    window._evoCurrentData = data;
+    
+    showModal(qrHtml);
+    
+    var qrBox = document.getElementById('evo-qr-box');
+    if (data.qrcode && data.qrcode.base64) {
+      qrBox.innerHTML = '<img src="' + data.qrcode.base64 + '" alt="QR Code" style="max-width:280px;border-radius:8px;" />';
+    } else if (data.qrcode) {
+      qrBox.innerHTML = '<img src="' + data.qrcode + '" alt="QR Code" style="max-width:280px;border-radius:8px;" />';
+    } else {
+      qrBox.innerHTML = '<p>Aguardando QR Code...</p>';
+    }
+    
+    var checks = 0;
+    var maxChecks = 120; // 6 minutos no total (120 * 3s)
+    
+    checkInterval = setInterval(async function() {
+      checks++;
+      var statusEl = document.getElementById('evo-qr-status');
+      
+      if (checks >= maxChecks) {
+        clearInterval(checkInterval);
+        if (statusEl) statusEl.textContent = 'Tempo esgotado. Clique em Atualizar QR ou Pular.';
+        return;
+      }
+      
+      if (statusEl) {
+        statusEl.textContent = 'Verificando conexao... (' + checks + '/' + maxChecks + ')';
+      }
+      
+      try {
+        var accountId = getAccountId();
+        var instanceName = data.instance_name || data.instance?.instanceName || config.inboxName;
+        var resp = await authFetch('/api/v1/accounts/' + accountId + '/evolution/status?instance_name=' + encodeURIComponent(instanceName));
+        var status = await resp.json();
+        
+        if (status.connected || status.state === 'open' || status.instance?.state === 'open') {
+          clearInterval(checkInterval);
+          if (statusEl) statusEl.innerHTML = '<span class="evo-status-connected">✓ Conectado com sucesso!</span>';
+          setTimeout(function() {
+            showSuccessStep(data);
+          }, 1500);
+        }
+      } catch (e) {
+        console.log('[Evolution] Status check error:', e);
+      }
+    }, 3000); // Verifica a cada 3 segundos
+  }
+  
+  // Função para pular a verificação de conexão
+  window.evoSkipConnection = function() {
+    if (checkInterval) {
+      clearInterval(checkInterval);
+      checkInterval = null;
+    }
+    var data = window._evoCurrentData || {};
+    showSuccessStepPending(data);
+  };
+  
+  function showSuccessStepPending(data) {
+    var inboxId = data.inbox_id || '';
+    var inboxName = data.inbox_name || 'WhatsApp';
+    var instanceName = data.instance_name || '';
+    var accountId = getAccountId();
+    
+    var pendingHtml = [
+      '<h2>Caixa de Entrada Criada!</h2>',
+      '<div class="evo-step-indicator">',
+      '  <div class="evo-step completed"></div>',
+      '  <div class="evo-step completed"></div>',
+      '  <div class="evo-step active"></div>',
+      '</div>',
+      '<div class="evo-success-icon" style="background:#fbbf24;color:#92400e;">⏳</div>',
+      '<p>Sua caixa de entrada <strong>' + inboxName + '</strong> foi criada!</p>',
+      '<p style="font-size:14px;color:#f59e0b;margin:8px 0;">⚠️ WhatsApp ainda nao conectado</p>',
+      '<p style="font-size:13px;color:#6b7280;">Acesse a configuracao da inbox para escanear o QR Code e finalizar a conexao.</p>',
+      inboxId ? '<p style="font-size:12px;color:#9ca3af;">ID da Inbox: ' + inboxId + '</p>' : '',
+      '<div class="evo-btn-group">',
+      inboxId ? '  <button type="button" class="evo-btn evo-btn-primary" onclick="window.location.href=\'/app/accounts/' + accountId + '/settings/inboxes/' + inboxId + '\'">Conectar QR Code</button>' : '',
+      '  <button type="button" class="evo-btn evo-btn-secondary" onclick="window.location.href=\'/app/accounts/' + accountId + '/dashboard\'">Ir para Dashboard</button>',
+      '</div>'
+    ].join('\n');
+    
+    showModal(pendingHtml);
+  }
+  
+  function showSuccessStep(data) {
+    var inboxId = data.inbox_id || '';
+    var inboxName = data.inbox_name || 'WhatsApp';
+    var accountId = getAccountId();
+    
+    var successHtml = [
+      '<h2>Caixa de Entrada Criada!</h2>',
+      '<div class="evo-step-indicator">',
+      '  <div class="evo-step completed"></div>',
+      '  <div class="evo-step completed"></div>',
+      '  <div class="evo-step active"></div>',
+      '</div>',
+      '<div class="evo-success-icon">✓</div>',
+      '<p>Sua caixa de entrada <strong>' + inboxName + '</strong> foi criada com sucesso!</p>',
+      inboxId ? '<p style="font-size:13px;color:#9ca3af;">ID da Inbox: ' + inboxId + '</p>' : '',
+      '<div class="evo-btn-group">',
+      inboxId ? '  <button type="button" class="evo-btn evo-btn-secondary" onclick="window.location.href=\'/app/accounts/' + accountId + '/settings/inboxes/' + inboxId + '\'">Configurar Inbox</button>' : '',
+      '  <button type="button" class="evo-btn evo-btn-primary" onclick="window.location.href=\'/app/accounts/' + accountId + '/dashboard\'">Ir para Dashboard</button>',
+      '</div>'
+    ].join('\n');
+    
+    showModal(successHtml);
+    
+    if (checkInterval) {
+      clearInterval(checkInterval);
+      checkInterval = null;
+    }
+  }
+  
+  function injectStyles() {
+    if (document.getElementById('evo-styles')) return;
+    
+    var styles = document.createElement('style');
+    styles.id = 'evo-styles';
+    styles.textContent = [
+      '.evo-modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 10000; }',
+      '.evo-modal { background: #1f2937; border-radius: 12px; padding: 24px; max-width: 500px; width: 90%; color: #fff; }',
+      '.evo-modal h2 { margin: 0 0 8px 0; font-size: 20px; }',
+      '.evo-modal p { color: #9ca3af; margin-bottom: 20px; }',
+      '.evo-step-indicator { display: flex; gap: 8px; margin-bottom: 20px; }',
+      '.evo-step { width: 60px; height: 4px; background: #374151; border-radius: 2px; }',
+      '.evo-step.active { background: #10b981; }',
+      '.evo-step.completed { background: #10b981; }',
+      '.evo-form-group { margin-bottom: 16px; }',
+      '.evo-form-group label { display: block; margin-bottom: 6px; font-size: 14px; color: #d1d5db; }',
+      '.evo-form-group input, .evo-form-group select { width: 100%; padding: 10px 12px; border: 1px solid #374151; border-radius: 6px; background: #111827; color: #fff; font-size: 14px; box-sizing: border-box; }',
+      '.evo-form-group input:focus, .evo-form-group select:focus { outline: none; border-color: #10b981; }',
+      '.evo-btn-group { display: flex; gap: 12px; margin-top: 20px; }',
+      '.evo-btn { padding: 10px 20px; border-radius: 6px; font-size: 14px; cursor: pointer; border: none; }',
+      '.evo-btn-primary { background: #10b981; color: #fff; }',
+      '.evo-btn-primary:hover { background: #059669; }',
+      '.evo-btn-primary:disabled { background: #6b7280; cursor: not-allowed; }',
+      '.evo-btn-secondary { background: #374151; color: #fff; }',
+      '.evo-btn-secondary:hover { background: #4b5563; }',
+      '.evo-error { background: #7f1d1d; color: #fecaca; padding: 10px; border-radius: 6px; margin-bottom: 16px; }',
+      '.evo-qr-container { text-align: center; padding: 20px; }',
+      '#evo-qr-box { min-height: 200px; display: flex; align-items: center; justify-content: center; }',
+      '.evo-status-connected { color: #10b981; font-weight: bold; }',
+      '.evo-success-icon { font-size: 48px; text-align: center; color: #10b981; margin: 20px 0; }'
+    ].join('\n');
+    
+    document.head.appendChild(styles);
+  }
+  
+  function injectEvolutionProvider() {
+    if (!window.location.href.includes('/settings/inboxes/new/whatsapp')) return;
+    
+    // Check if already injected
+    if (document.querySelector('[data-provider="evolution"]')) {
+      return;
+    }
+    
+    console.log('[Evolution] Looking for provider cards...');
+    
+    // Find cards by looking for specific text content
+    var allDivs = document.querySelectorAll('div');
+    var cloudCard = null;
+    var twilioCard = null;
+    
+    for (var i = 0; i < allDivs.length; i++) {
+      var div = allDivs[i];
+      var text = div.textContent || '';
+      
+      // Look for the Cloud do WhatsApp card (more specific matching)
+      if (!cloudCard && text.includes('Cloud do WhatsApp') && div.querySelector('img')) {
+        // Make sure it's the card itself, not a parent
+        if (div.children.length <= 5 && div.offsetWidth > 200 && div.offsetWidth < 500) {
+          cloudCard = div;
+        }
+      }
+      
+      // Look for Twilio card
+      if (!twilioCard && text.includes('Twilio') && div.querySelector('img')) {
+        if (div.children.length <= 5 && div.offsetWidth > 200 && div.offsetWidth < 500) {
+          twilioCard = div;
+        }
+      }
+    }
+    
+    var referenceCard = cloudCard || twilioCard;
+    
+    if (!referenceCard) {
+      console.log('[Evolution] No provider cards found yet');
+      return;
+    }
+    
+    console.log('[Evolution] Found reference card:', referenceCard.textContent.substring(0, 50));
+    
+    var container = referenceCard.parentElement;
+    
+    if (!container) {
+      console.log('[Evolution] Container not found');
+      return;
+    }
+    
+    // Clone the reference card structure
+    var evolutionCard = referenceCard.cloneNode(true);
+    evolutionCard.setAttribute('data-provider', 'evolution');
+    
+    // Update the content
+    var imgs = evolutionCard.querySelectorAll('img');
+    imgs.forEach(function(img) {
+      img.src = '/assets/images/dashboard/channels/whatsapp.png';
+      img.alt = 'WhatsApp';
+    });
+    
+    // Find and update text elements
+    var allElements = evolutionCard.querySelectorAll('*');
+    allElements.forEach(function(el) {
+      if (el.children.length === 0) {
+        var text = el.textContent || '';
+        if (text.includes('Cloud') || text.includes('Twilio')) {
+          el.textContent = 'WhatsApp';
+        } else if (text.includes('setup') || text.includes('Meta') || text.includes('credentials')) {
+          el.textContent = 'Conecte via QR Code';
+        }
+      }
+    });
+    
+    // Add click handler
+    evolutionCard.style.cursor = 'pointer';
+    evolutionCard.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      showEvolutionForm();
+    });
+    
+    // Insert after the reference card
+    if (referenceCard.nextSibling) {
+      container.insertBefore(evolutionCard, referenceCard.nextSibling);
+    } else {
+      container.appendChild(evolutionCard);
+    }
+    
+    isInjected = true;
+    console.log('[Evolution] Card injected successfully!');
+  }
+  
+  window.evoCloseModal = closeModal;
+  window.evoRefreshQR = async function() {
+    var config = window._evoConfig;
+    if (!config) return;
+    var accountId = getAccountId();
+    try {
+      var response = await authFetch('/api/v1/accounts/' + accountId + '/evolution/authorizations', {
+        method: 'POST',
+        body: JSON.stringify({
+          authorization: {
+            api_url: config.apiUrl,
+            admin_token: config.apiKey,
+            inbox_name: config.inboxName,
+            phone_number: config.phone
+          }
+        })
+      });
+      var data = await response.json();
+      if (response.ok) {
+        showQRCodeStep(data, config);
+      } else {
+        throw new Error(data.error || 'Erro ao atualizar QR code');
+      }
+    } catch (error) {
+      var errorDiv = document.getElementById('evo-error');
+      if (errorDiv) {
+        errorDiv.textContent = error.message;
+        errorDiv.style.display = 'block';
+      }
+    }
+  };
+  
+  // ===== EVOLUTION INBOX SETTINGS (QR CODE + PROFILE + STATUS) =====
+  var evoSettingsState = {
+    injected: false,
+    inboxId: null,
+    instanceName: null,
+    statusInterval: null,
+    qrInterval: null
+  };
+
+  // --- Evolution API helpers ---
+  function evoApi(path, opts) {
+    opts = opts || {};
+    opts.headers = opts.headers || {};
+    opts.headers['apikey'] = EVOLUTION_CONFIG.apiKey;
+    if (opts.body && !opts.headers['Content-Type']) opts.headers['Content-Type'] = 'application/json';
+    return fetch(EVOLUTION_CONFIG.apiUrl + path, opts);
+  }
+
+  async function evoGetStatus(inst) {
+    try {
+      var r = await evoApi('/instance/connectionState/' + encodeURIComponent(inst));
+      var d = await r.json();
+      return d.instance?.state || d.state || 'close';
+    } catch(e) { return 'error'; }
+  }
+
+  async function evoGetQR(inst) {
+    try {
+      var r = await evoApi('/instance/connect/' + encodeURIComponent(inst));
+      var d = await r.json();
+      return d.base64 || d.qrcode?.base64 || null;
+    } catch(e) { return null; }
+  }
+
+  async function evoLogout(inst) {
+    try {
+      await evoApi('/instance/logout/' + encodeURIComponent(inst), { method: 'DELETE' });
+      return true;
+    } catch(e) { return false; }
+  }
+
+  async function evoRestart(inst) {
+    try {
+      await evoApi('/instance/restart/' + encodeURIComponent(inst), { method: 'PUT' });
+      return true;
+    } catch(e) { return false; }
+  }
+
+  async function evoFetchProfile(inst) {
+    try {
+      var r = await evoApi('/chat/fetchProfile/' + encodeURIComponent(inst));
+      return await r.json();
+    } catch(e) { return null; }
+  }
+
+  async function evoUpdateProfileName(inst, name) {
+    var r = await evoApi('/chat/updateProfileName/' + encodeURIComponent(inst), {
+      method: 'POST', body: JSON.stringify({ name: name })
+    });
+    return r.ok;
+  }
+
+  async function evoUpdateProfileStatus(inst, status) {
+    var r = await evoApi('/chat/updateProfileStatus/' + encodeURIComponent(inst), {
+      method: 'POST', body: JSON.stringify({ status: status })
+    });
+    return r.ok;
+  }
+
+  async function evoUpdateProfilePicture(inst, url) {
+    var r = await evoApi('/chat/updateProfilePicture/' + encodeURIComponent(inst), {
+      method: 'POST', body: JSON.stringify({ picture: url })
+    });
+    return r.ok;
+  }
+
+  async function evoRemoveProfilePicture(inst) {
+    var r = await evoApi('/chat/removeProfilePicture/' + encodeURIComponent(inst), { method: 'DELETE' });
+    return r.ok;
+  }
+
+  // --- Detect if current inbox is Evolution via Chatwoot API ---
+  async function fetchInboxData(accountId, inboxId) {
+    try {
+      var r = await authFetch('/api/v1/accounts/' + accountId + '/inboxes/' + inboxId);
+      if (!r.ok) return null;
+      return await r.json();
+    } catch(e) { return null; }
+  }
+
+  // --- Main inbox settings page detection ---
+  async function checkInboxConfigPage() {
+    var match = window.location.pathname.match(/\/accounts\/(\d+)\/settings\/inboxes\/(\d+)/);
+    if (!match) {
+      cleanupEvoSettings();
+      return;
+    }
+
+    var accountId = match[1];
+    var inboxId = match[2];
+
+    // Already injected for this inbox
+    if (evoSettingsState.injected && evoSettingsState.inboxId === inboxId) return;
+
+    // Fetch inbox data from Chatwoot API to check if Evolution
+    var inboxData = await fetchInboxData(accountId, inboxId);
+    if (!inboxData) return;
+
+    // Check if this is an Evolution inbox (Channel::Api or legacy Channel::Whatsapp)
+    var isEvolution = false;
+    var instanceName = null;
+
+    // Method 1: Check provider_config.provider_type (from _inbox_slim jbuilder)
+    if (inboxData.provider_config) {
+      if (inboxData.provider_config.provider_type === 'evolution') {
+        isEvolution = true;
+      }
+    }
+
+    // Method 2: Check additional_attributes for Channel::Api
+    if (!isEvolution && inboxData.additional_attributes) {
+      if (inboxData.additional_attributes.provider_type === 'evolution') {
+        isEvolution = true;
+        instanceName = inboxData.additional_attributes.instance_name;
+      }
+    }
+
+    // Method 3: Fallback - check provider_config for instance_name
+    if (!instanceName && inboxData.provider_config) {
+      instanceName = inboxData.provider_config.instance_name;
+    }
+
+    // Method 4: Check provider attribute
+    if (!isEvolution && inboxData.provider === 'evolution') {
+      isEvolution = true;
+    }
+
+    if (!isEvolution || !instanceName) {
+      console.log('[Evolution Settings] Inbox ' + inboxId + ' is not Evolution');
+      return;
+    }
+
+    console.log('[Evolution Settings] Detected Evolution inbox ' + inboxId + ' instance: ' + instanceName);
+    evoSettingsState.injected = true;
+    evoSettingsState.inboxId = inboxId;
+    evoSettingsState.instanceName = instanceName;
+
+    // Wait for page to render then inject panel
+    setTimeout(function() { injectEvoSettingsPanel(instanceName); }, 800);
+  }
+
+  function cleanupEvoSettings() {
+    if (evoSettingsState.statusInterval) clearInterval(evoSettingsState.statusInterval);
+    if (evoSettingsState.qrInterval) clearInterval(evoSettingsState.qrInterval);
+    evoSettingsState.injected = false;
+    evoSettingsState.inboxId = null;
+    evoSettingsState.instanceName = null;
+    var panel = document.getElementById('evo-settings-panel');
+    if (panel) panel.remove();
+  }
+
+  function injectEvoSettingsPanel(instanceName) {
+    if (document.getElementById('evo-settings-panel')) return;
+
+    // Find Configuration tab content area - target the main section inside Settings.vue
+    var target = document.querySelector('div.settings section.mx-auto') ||
+                 document.querySelector('div.settings section') ||
+                 document.querySelector('.settings--content') ||
+                 document.querySelector('section.mx-auto') ||
+                 document.querySelector('.column.content-box') ||
+                 document.querySelector('.columns .column');
+
+    if (!target) {
+      console.log('[Evolution Settings] No settings container found, retrying...');
+      setTimeout(function() { injectEvoSettingsPanel(instanceName); }, 1000);
+      return;
+    }
+
+    var panel = document.createElement('div');
+    panel.id = 'evo-settings-panel';
+    panel.innerHTML = buildEvoSettingsHTML(instanceName);
+    
+    // Insert at the top of the settings content
+    target.insertBefore(panel, target.firstChild);
+
+    // Hide irrelevant WhatsApp Cloud settings (webhook token, API key, template sync)
+    hideDefaultWhatsAppSettings();
+
+    // Load data
+    refreshEvoStatus(instanceName);
+    loadEvoProfileData(instanceName);
+    loadEvoProxyData(instanceName);
+
+    // Auto-refresh status every 10s
+    evoSettingsState.statusInterval = setInterval(function() {
+      refreshEvoStatus(instanceName);
+    }, 10000);
+  }
+
+  function hideDefaultWhatsAppSettings() {
+    // Hide the default WhatsApp Cloud configuration sections that are irrelevant for Evolution
+    // These include: webhook verify token, API key, update API key, sync templates
+    setTimeout(function() {
+      // Find sections with WhatsApp Cloud-specific content
+      var codeSections = document.querySelectorAll('woot-code, .whatsapp-settings--content');
+      codeSections.forEach(function(el) {
+        // Walk up to find the SettingsSection parent and hide it
+        var parent = el.closest('.mx-8 > div, .mx-8 > section, [class*="SettingsSection"]');
+        if (parent) parent.style.display = 'none';
+      });
+
+      // Also hide template sync section
+      var allButtons = document.querySelectorAll('button');
+      allButtons.forEach(function(btn) {
+        if (btn.textContent && btn.textContent.includes('Sync')) {
+          var section = btn.closest('.mx-8 > div, [class*="SettingsSection"]');
+          if (section) section.style.display = 'none';
+        }
+      });
+
+      // Add a CSS rule to hide woot-code parents in the config tab when Evolution panel is present
+      if (!document.getElementById('evo-hide-cloud-css')) {
+        var style = document.createElement('style');
+        style.id = 'evo-hide-cloud-css';
+        style.textContent = '#evo-settings-panel ~ div .whatsapp-settings--content { display: none !important; }';
+        document.head.appendChild(style);
+      }
+    }, 500);
+  }
+
+  function buildEvoSettingsHTML(instanceName) {
+    return [
+      '<div style="background:var(--w-500, #1f2937);border:1px solid var(--s-100, #374151);border-radius:12px;padding:24px;margin-bottom:24px;color:var(--color-body, #fff);">',
+      
+      // Header
+      '  <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">',
+      '    <div style="width:40px;height:40px;border-radius:8px;background:#25D366;display:flex;align-items:center;justify-content:center;font-size:20px;">📱</div>',
+      '    <div>',
+      '      <h3 style="margin:0;font-size:18px;font-weight:600;">WhatsApp</h3>',
+      '      <p style="margin:0;font-size:13px;opacity:0.7;">Instância: ' + instanceName + '</p>',
+      '    </div>',
+      '  </div>',
+
+      // Connection Status Section
+      '  <div id="evo-connection-section" style="background:var(--w-600, #111827);border-radius:8px;padding:16px;margin-bottom:16px;">',
+      '    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">',
+      '      <div style="display:flex;align-items:center;gap:8px;">',
+      '        <span style="font-size:14px;font-weight:600;">Status da Conexão</span>',
+      '        <span id="evo-status-badge" style="padding:3px 10px;border-radius:12px;font-size:12px;font-weight:600;background:#6b7280;color:#fff;">Verificando...</span>',
+      '      </div>',
+      '      <div style="display:flex;gap:8px;">',
+      '        <button onclick="window.evoRefreshStatus()" style="padding:6px 12px;border-radius:6px;background:var(--w-500, #374151);color:var(--color-body, #fff);border:1px solid var(--s-100, #4b5563);cursor:pointer;font-size:12px;" title="Atualizar status">🔄 Atualizar</button>',
+      '        <button id="evo-disconnect-btn" onclick="window.evoDisconnect()" style="padding:6px 12px;border-radius:6px;background:#7f1d1d;color:#fecaca;border:none;cursor:pointer;font-size:12px;display:none;">Desconectar</button>',
+      '        <button id="evo-restart-btn" onclick="window.evoRestartInstance()" style="padding:6px 12px;border-radius:6px;background:#1e40af;color:#93c5fd;border:none;cursor:pointer;font-size:12px;display:none;">Reiniciar</button>',
+      '      </div>',
+      '    </div>',
+
+      // QR Code area (hidden when connected)
+      '    <div id="evo-qr-area" style="display:none;">',
+      '      <div style="text-align:center;padding:16px;background:var(--w-700, #0f172a);border-radius:8px;">',
+      '        <p style="margin:0 0 12px 0;font-size:14px;color:#f59e0b;">⚠️ WhatsApp desconectado</p>',
+      '        <p style="margin:0 0 16px 0;font-size:13px;opacity:0.7;">Escaneie o QR Code com o WhatsApp para reconectar</p>',
+      '        <div id="evo-qr-img-box" style="min-height:200px;display:flex;align-items:center;justify-content:center;">',
+      '          <span style="opacity:0.5;">Carregando QR Code...</span>',
+      '        </div>',
+      '        <div style="display:flex;gap:8px;justify-content:center;margin-top:12px;">',
+      '          <button onclick="window.evoGenerateQR()" style="padding:8px 16px;border-radius:6px;background:#10b981;color:#fff;border:none;cursor:pointer;font-size:13px;">🔄 Gerar Novo QR Code</button>',
+      '        </div>',
+      '        <p id="evo-qr-timer" style="font-size:11px;opacity:0.5;margin-top:8px;"></p>',
+      '      </div>',
+      '    </div>',
+
+      // Connected info (shown when connected)
+      '    <div id="evo-connected-info" style="display:none;">',
+      '      <p style="margin:0;font-size:13px;color:#10b981;">✅ WhatsApp conectado e pronto para receber/enviar mensagens</p>',
+      '    </div>',
+      '  </div>',
+
+      // Profile Section
+      '  <div style="background:var(--w-600, #111827);border-radius:8px;padding:16px;margin-bottom:16px;">',
+      '    <h4 style="margin:0 0 16px 0;font-size:15px;font-weight:600;">Perfil do WhatsApp</h4>',
+      
+      '    <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;">',
+      '      <div id="evo-avatar-box" style="position:relative;">',
+      '        <img id="evo-profile-img" src="" style="width:72px;height:72px;border-radius:50%;background:var(--w-500, #374151);object-fit:cover;display:none;" />',
+      '        <div id="evo-profile-img-placeholder" style="width:72px;height:72px;border-radius:50%;background:var(--w-500, #374151);display:flex;align-items:center;justify-content:center;font-size:28px;">👤</div>',
+      '      </div>',
+      '      <div style="flex:1;">',
+      '        <div style="font-size:14px;font-weight:600;" id="evo-profile-display-name">-</div>',
+      '        <div style="font-size:12px;opacity:0.6;" id="evo-profile-display-status">-</div>',
+      '      </div>',
+      '    </div>',
+
+      '    <div style="display:grid;gap:12px;">',
+      
+      // Profile Name
+      '      <div>',
+      '        <label style="display:block;margin-bottom:4px;font-size:12px;font-weight:600;text-transform:uppercase;opacity:0.6;">Nome do Perfil</label>',
+      '        <div style="display:flex;gap:8px;">',
+      '          <input type="text" id="evo-profile-name" placeholder="Nome do perfil" style="flex:1;padding:8px 12px;border:1px solid var(--s-100, #374151);border-radius:6px;background:var(--w-700, #0f172a);color:var(--color-body, #fff);font-size:13px;" />',
+      '          <button onclick="window.evoSaveProfileName()" style="padding:8px 14px;border-radius:6px;background:#10b981;color:#fff;border:none;cursor:pointer;font-size:13px;white-space:nowrap;">Salvar</button>',
+      '        </div>',
+      '      </div>',
+      
+      // Profile Status
+      '      <div>',
+      '        <label style="display:block;margin-bottom:4px;font-size:12px;font-weight:600;text-transform:uppercase;opacity:0.6;">Recado / Status</label>',
+      '        <div style="display:flex;gap:8px;">',
+      '          <input type="text" id="evo-profile-status" placeholder="Recado do WhatsApp" style="flex:1;padding:8px 12px;border:1px solid var(--s-100, #374151);border-radius:6px;background:var(--w-700, #0f172a);color:var(--color-body, #fff);font-size:13px;" />',
+      '          <button onclick="window.evoSaveProfileStatus()" style="padding:8px 14px;border-radius:6px;background:#10b981;color:#fff;border:none;cursor:pointer;font-size:13px;white-space:nowrap;">Salvar</button>',
+      '        </div>',
+      '      </div>',
+      
+      // Profile Picture
+      '      <div>',
+      '        <label style="display:block;margin-bottom:4px;font-size:12px;font-weight:600;text-transform:uppercase;opacity:0.6;">Foto de Perfil (URL)</label>',
+      '        <div style="display:flex;gap:8px;">',
+      '          <input type="url" id="evo-profile-picture-url" placeholder="https://exemplo.com/foto.jpg" style="flex:1;padding:8px 12px;border:1px solid var(--s-100, #374151);border-radius:6px;background:var(--w-700, #0f172a);color:var(--color-body, #fff);font-size:13px;" />',
+      '          <button onclick="window.evoSaveProfilePicture()" style="padding:8px 14px;border-radius:6px;background:#10b981;color:#fff;border:none;cursor:pointer;font-size:13px;white-space:nowrap;">Salvar</button>',
+      '          <button onclick="window.evoDeleteProfilePicture()" style="padding:8px 14px;border-radius:6px;background:#7f1d1d;color:#fecaca;border:none;cursor:pointer;font-size:13px;white-space:nowrap;">Remover</button>',
+      '        </div>',
+      '      </div>',
+      '    </div>',
+
+      // Proxy Section
+      '  <div style="background:var(--w-600, #111827);border-radius:8px;padding:16px;margin-bottom:16px;">',
+      '    <h4 style="margin:0 0 16px 0;font-size:15px;font-weight:600;">Configurações de Proxy</h4>',
+      '    <div style="display:grid;gap:12px;">',
+      '      <div style="display:flex;align-items:center;gap:12px;">',
+      '        <label style="font-size:13px;font-weight:600;min-width:60px;">Ativo</label>',
+      '        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">',
+      '          <input type="checkbox" id="evo-proxy-enabled" style="width:18px;height:18px;cursor:pointer;" />',
+      '          <span style="font-size:13px;" id="evo-proxy-enabled-label">Desativado</span>',
+      '        </label>',
+      '      </div>',
+      '      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">',
+      '        <div>',
+      '          <label style="display:block;margin-bottom:4px;font-size:12px;font-weight:600;text-transform:uppercase;opacity:0.6;">Host</label>',
+      '          <input type="text" id="evo-proxy-host" placeholder="ex: 104.253.84.166" style="width:100%;padding:8px 12px;border:1px solid var(--s-100, #374151);border-radius:6px;background:var(--w-700, #0f172a);color:var(--color-body, #fff);font-size:13px;box-sizing:border-box;" />',
+      '        </div>',
+      '        <div>',
+      '          <label style="display:block;margin-bottom:4px;font-size:12px;font-weight:600;text-transform:uppercase;opacity:0.6;">Porta</label>',
+      '          <input type="text" id="evo-proxy-port" placeholder="ex: 7600" style="width:100%;padding:8px 12px;border:1px solid var(--s-100, #374151);border-radius:6px;background:var(--w-700, #0f172a);color:var(--color-body, #fff);font-size:13px;box-sizing:border-box;" />',
+      '        </div>',
+      '      </div>',
+      '      <div>',
+      '        <label style="display:block;margin-bottom:4px;font-size:12px;font-weight:600;text-transform:uppercase;opacity:0.6;">Protocolo</label>',
+      '        <select id="evo-proxy-protocol" style="width:100%;padding:8px 12px;border:1px solid var(--s-100, #374151);border-radius:6px;background:var(--w-700, #0f172a);color:var(--color-body, #fff);font-size:13px;">',
+      '          <option value="http">HTTP</option>',
+      '          <option value="https">HTTPS</option>',
+      '          <option value="socks5">SOCKS5</option>',
+      '        </select>',
+      '      </div>',
+      '      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">',
+      '        <div>',
+      '          <label style="display:block;margin-bottom:4px;font-size:12px;font-weight:600;text-transform:uppercase;opacity:0.6;">Usuário</label>',
+      '          <input type="text" id="evo-proxy-username" placeholder="Usuário do proxy" style="width:100%;padding:8px 12px;border:1px solid var(--s-100, #374151);border-radius:6px;background:var(--w-700, #0f172a);color:var(--color-body, #fff);font-size:13px;box-sizing:border-box;" />',
+      '        </div>',
+      '        <div>',
+      '          <label style="display:block;margin-bottom:4px;font-size:12px;font-weight:600;text-transform:uppercase;opacity:0.6;">Senha</label>',
+      '          <input type="password" id="evo-proxy-password" placeholder="Senha do proxy" style="width:100%;padding:8px 12px;border:1px solid var(--s-100, #374151);border-radius:6px;background:var(--w-700, #0f172a);color:var(--color-body, #fff);font-size:13px;box-sizing:border-box;" />',
+      '        </div>',
+      '      </div>',
+      '      <div>',
+      '        <button onclick="window.evoSaveProxy()" style="padding:8px 14px;border-radius:6px;background:#10b981;color:#fff;border:none;cursor:pointer;font-size:13px;white-space:nowrap;">Salvar Proxy</button>',
+      '      </div>',
+      '    </div>',
+      '  </div>',
+
+      // Feedback message
+      '    <div id="evo-feedback" style="display:none;padding:8px 12px;border-radius:6px;margin-top:12px;font-size:13px;"></div>',
+      '  </div>',
+
+      '</div>'
+    ].join('\n');
+  }
+
+  // --- Status refresh ---
+  async function refreshEvoStatus(instanceName) {
+    var state = await evoGetStatus(instanceName);
+    var badge = document.getElementById('evo-status-badge');
+    var qrArea = document.getElementById('evo-qr-area');
+    var connInfo = document.getElementById('evo-connected-info');
+    var disconnectBtn = document.getElementById('evo-disconnect-btn');
+    var restartBtn = document.getElementById('evo-restart-btn');
+
+    if (!badge) return;
+
+    if (state === 'open') {
+      badge.textContent = 'Conectado';
+      badge.style.background = '#065f46';
+      badge.style.color = '#a7f3d0';
+      if (qrArea) qrArea.style.display = 'none';
+      if (connInfo) connInfo.style.display = 'block';
+      if (disconnectBtn) disconnectBtn.style.display = 'inline-block';
+      if (restartBtn) restartBtn.style.display = 'inline-block';
+      // Stop QR polling if runnig
+      if (evoSettingsState.qrInterval) {
+        clearInterval(evoSettingsState.qrInterval);
+        evoSettingsState.qrInterval = null;
+      }
+    } else {
+      badge.textContent = state === 'connecting' ? 'Conectando...' : 'Desconectado';
+      badge.style.background = state === 'connecting' ? '#92400e' : '#7f1d1d';
+      badge.style.color = state === 'connecting' ? '#fde68a' : '#fecaca';
+      if (qrArea) qrArea.style.display = 'block';
+      if (connInfo) connInfo.style.display = 'none';
+      if (disconnectBtn) disconnectBtn.style.display = 'none';
+      if (restartBtn) restartBtn.style.display = 'inline-block';
+      // Auto-generate QR if not already polling
+      if (!evoSettingsState.qrInterval) {
+        window.evoGenerateQR();
+      }
+    }
+  }
+
+  // --- Window-exposed functions ---
+  window.evoRefreshStatus = function() {
+    if (evoSettingsState.instanceName) refreshEvoStatus(evoSettingsState.instanceName);
+  };
+
+  window.evoGenerateQR = async function() {
+    var inst = evoSettingsState.instanceName;
+    if (!inst) return;
+    var imgBox = document.getElementById('evo-qr-img-box');
+    var timer = document.getElementById('evo-qr-timer');
+    if (imgBox) imgBox.innerHTML = '<span style="opacity:0.5;">Gerando QR Code...</span>';
+
+    var qrBase64 = await evoGetQR(inst);
+    if (qrBase64) {
+      var src = qrBase64.startsWith('data:') ? qrBase64 : 'data:image/png;base64,' + qrBase64;
+      if (imgBox) imgBox.innerHTML = '<img src="' + src + '" style="max-width:280px;border-radius:8px;background:#fff;padding:8px;" />';
+    } else {
+      if (imgBox) imgBox.innerHTML = '<span style="color:#f59e0b;">Não foi possível gerar o QR Code. A instância pode já estar conectada ou indisponível.</span>';
+    }
+
+    // Poll for connection every 3s for 2 minutes
+    var checks = 0;
+    if (evoSettingsState.qrInterval) clearInterval(evoSettingsState.qrInterval);
+    evoSettingsState.qrInterval = setInterval(async function() {
+      checks++;
+      if (timer) timer.textContent = 'Verificando conexão... (' + checks + '/40)';
+      if (checks >= 40) {
+        clearInterval(evoSettingsState.qrInterval);
+        evoSettingsState.qrInterval = null;
+        if (timer) timer.textContent = 'QR Code expirado. Clique em "Gerar Novo QR Code".';
+        return;
+      }
+      var s = await evoGetStatus(inst);
+      if (s === 'open') {
+        clearInterval(evoSettingsState.qrInterval);
+        evoSettingsState.qrInterval = null;
+        refreshEvoStatus(inst);
+        loadEvoProfileData(inst);
+        loadEvoProxyData(inst);
+        showEvoFeedback('WhatsApp conectado com sucesso!', true);
+      }
+    }, 3000);
+  };
+
+  window.evoDisconnect = async function() {
+    var inst = evoSettingsState.instanceName;
+    if (!inst) return;
+    if (!confirm('Deseja realmente desconectar o WhatsApp desta instância?')) return;
+    showEvoFeedback('Desconectando...', true);
+    await evoLogout(inst);
+    setTimeout(function() { refreshEvoStatus(inst); }, 2000);
+  };
+
+  window.evoRestartInstance = async function() {
+    var inst = evoSettingsState.instanceName;
+    if (!inst) return;
+    showEvoFeedback('Reiniciando instância...', true);
+    await evoRestart(inst);
+    setTimeout(function() { refreshEvoStatus(inst); }, 3000);
+  };
+
+  window.evoSaveProfileName = async function() {
+    var v = document.getElementById('evo-profile-name').value.trim();
+    if (!v) return showEvoFeedback('Nome é obrigatório', false);
+    var ok = await evoUpdateProfileName(evoSettingsState.instanceName, v);
+    showEvoFeedback(ok ? 'Nome atualizado!' : 'Erro ao atualizar nome', ok);
+    if (ok) { var el = document.getElementById('evo-profile-display-name'); if (el) el.textContent = v; }
+  };
+
+  window.evoSaveProfileStatus = async function() {
+    var v = document.getElementById('evo-profile-status').value.trim();
+    var ok = await evoUpdateProfileStatus(evoSettingsState.instanceName, v);
+    showEvoFeedback(ok ? 'Status atualizado!' : 'Erro ao atualizar status', ok);
+    if (ok) { var el = document.getElementById('evo-profile-display-status'); if (el) el.textContent = v || '-'; }
+  };
+
+  window.evoSaveProfilePicture = async function() {
+    var v = document.getElementById('evo-profile-picture-url').value.trim();
+    if (!v) return showEvoFeedback('URL da imagem é obrigatória', false);
+    var ok = await evoUpdateProfilePicture(evoSettingsState.instanceName, v);
+    showEvoFeedback(ok ? 'Foto atualizada!' : 'Erro ao atualizar foto', ok);
+    if (ok) {
+      var img = document.getElementById('evo-profile-img');
+      var ph = document.getElementById('evo-profile-img-placeholder');
+      if (img) { img.src = v; img.style.display = 'block'; }
+      if (ph) ph.style.display = 'none';
+    }
+  };
+
+  window.evoDeleteProfilePicture = async function() {
+    var ok = await evoRemoveProfilePicture(evoSettingsState.instanceName);
+    showEvoFeedback(ok ? 'Foto removida!' : 'Erro ao remover foto', ok);
+    if (ok) {
+      var img = document.getElementById('evo-profile-img');
+      var ph = document.getElementById('evo-profile-img-placeholder');
+      if (img) { img.src = ''; img.style.display = 'none'; }
+      if (ph) ph.style.display = 'flex';
+    }
+  };
+
+  // --- Proxy functions ---
+  async function evoFetchProxy(inst) {
+    try {
+      var r = await evoApi('/proxy/find/' + encodeURIComponent(inst));
+      if (r.ok) return await r.json();
+      return null;
+    } catch(e) { return null; }
+  }
+
+  async function evoSetProxy(inst, proxyData) {
+    var r = await evoApi('/proxy/set/' + encodeURIComponent(inst), {
+      method: 'POST', body: JSON.stringify(proxyData)
+    });
+    return r.ok;
+  }
+
+  window.evoSaveProxy = async function() {
+    var inst = evoSettingsState.instanceName;
+    if (!inst) return;
+
+    var enabled = document.getElementById('evo-proxy-enabled').checked;
+    var host = document.getElementById('evo-proxy-host').value.trim();
+    var port = document.getElementById('evo-proxy-port').value.trim();
+    var protocol = document.getElementById('evo-proxy-protocol').value;
+    var username = document.getElementById('evo-proxy-username').value.trim();
+    var password = document.getElementById('evo-proxy-password').value.trim();
+
+    if (enabled && (!host || !port)) {
+      return showEvoFeedback('Host e Porta são obrigatórios', false);
+    }
+
+    var proxyData = { enabled: enabled, host: host, port: port, protocol: protocol, username: username, password: password };
+    var ok = await evoSetProxy(inst, proxyData);
+    showEvoFeedback(ok ? 'Proxy salvo com sucesso!' : 'Erro ao salvar proxy', ok);
+  };
+
+  async function loadEvoProxyData(instanceName) {
+    try {
+      var proxy = await evoFetchProxy(instanceName);
+      if (proxy) {
+        var enabledEl = document.getElementById('evo-proxy-enabled');
+        var hostEl = document.getElementById('evo-proxy-host');
+        var portEl = document.getElementById('evo-proxy-port');
+        var protocolEl = document.getElementById('evo-proxy-protocol');
+        var usernameEl = document.getElementById('evo-proxy-username');
+        var passwordEl = document.getElementById('evo-proxy-password');
+        var labelEl = document.getElementById('evo-proxy-enabled-label');
+
+        if (enabledEl) { enabledEl.checked = proxy.enabled || false; }
+        if (hostEl) hostEl.value = proxy.host || '';
+        if (portEl) portEl.value = proxy.port || '';
+        if (protocolEl) protocolEl.value = proxy.protocol || 'http';
+        if (usernameEl) usernameEl.value = proxy.username || '';
+        if (passwordEl) passwordEl.value = proxy.password || '';
+        if (labelEl) labelEl.textContent = proxy.enabled ? 'Ativado' : 'Desativado';
+
+        if (enabledEl) {
+          enabledEl.addEventListener('change', function() {
+            if (labelEl) labelEl.textContent = enabledEl.checked ? 'Ativado' : 'Desativado';
+          });
+        }
+      }
+    } catch(e) {
+      console.log('[Evolution Settings] Proxy load error:', e);
+    }
+  }
+
+  function showEvoFeedback(text, success) {
+    var el = document.getElementById('evo-feedback');
+    if (!el) return;
+    el.textContent = text;
+    el.style.display = 'block';
+    el.style.background = success ? '#065f46' : '#7f1d1d';
+    el.style.color = success ? '#a7f3d0' : '#fecaca';
+    setTimeout(function() { el.style.display = 'none'; }, 4000);
+  }
+
+  async function loadEvoProfileData(instanceName) {
+    try {
+      var profile = await evoFetchProfile(instanceName);
+      if (profile) {
+        var nameEl = document.getElementById('evo-profile-name');
+        var statusEl = document.getElementById('evo-profile-status');
+        var displayName = document.getElementById('evo-profile-display-name');
+        var displayStatus = document.getElementById('evo-profile-display-status');
+        if (profile.name) {
+          if (nameEl) nameEl.value = profile.name;
+          if (displayName) displayName.textContent = profile.name;
+        }
+        if (profile.status) {
+          if (statusEl) statusEl.value = profile.status;
+          if (displayStatus) displayStatus.textContent = profile.status;
+        }
+        if (profile.isBusiness !== undefined) {
+          if (displayStatus) displayStatus.textContent = (profile.status || '') + (profile.isBusiness ? ' (Business)' : '');
+        }
+      }
+    } catch(e) {
+      console.log('[Evolution Settings] Profile load error:', e);
+    }
+
+    // Try to load profile picture
+    try {
+      var inst = instanceName;
+      var r = await evoApi('/chat/fetchProfilePictureUrl/' + encodeURIComponent(inst), {
+        method: 'POST', body: JSON.stringify({ number: inst })
+      });
+      var d = await r.json();
+      var picUrl = d.profilePictureUrl || d.picture || null;
+      if (picUrl) {
+        var img = document.getElementById('evo-profile-img');
+        var ph = document.getElementById('evo-profile-img-placeholder');
+        if (img) { img.src = picUrl; img.style.display = 'block'; }
+        if (ph) ph.style.display = 'none';
+      }
+    } catch(e) {}
+  }
+  // ===== END EVOLUTION INBOX SETTINGS =====
+  
+  function init() {
+    injectStyles();
+    
+    // Inject Evolution provider card on new inbox page
+    setInterval(function() {
+      if (!isInjected || !document.querySelector('[data-provider="evolution"]')) {
+        isInjected = false;
+        injectEvolutionProvider();
+      }
+    }, 1000);
+
+    // Check for inbox config page (async, runs on URL change)
+    var lastUrl = '';
+    function checkRoute() {
+      var currentUrl = window.location.href;
+      if (currentUrl !== lastUrl) {
+        lastUrl = currentUrl;
+        // Reset injection state on navigation
+        isInjected = false;
+        cleanupEvoSettings();
+        setTimeout(injectEvolutionProvider, 500);
+        // Check if we're on an inbox settings page
+        setTimeout(function() { checkInboxConfigPage(); }, 1200);
+      }
+    }
+    
+    // Initial check
+    checkRoute();
+    
+    // Poll for URL changes (SPA routing)
+    setInterval(checkRoute, 1500);
+  }
+  
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+    </script>
+
+    <!-- Evolution: Detect Evolution inbox IDs from API responses -->
+    <script>
+(function() {
+  // Store Evolution inbox IDs detected from API responses
+  window.__evolutionInboxIds = new Set();
+
+  const originalFetch = window.fetch;
+  window.fetch = function(...args) {
+    return originalFetch.apply(this, args).then(function(response) {
+      const url = (typeof args[0] === 'string') ? args[0] : (args[0]?.url || '');
+
+      // Intercept inboxes list to detect Evolution inbox IDs
+      if (/\/api\/v1\/accounts\/\d+\/inboxes\/?(\?|$)/.test(url) && !url.includes('contactable_inboxes')) {
+        const cloned = response.clone();
+        cloned.json().then(function(data) {
+          if (data && data.payload) {
+            data.payload.forEach(function(inbox) {
+              // Detect Channel::Api Evolution inboxes
+              if (inbox.channel_type === 'Channel::Api' &&
+                  inbox.provider_config &&
+                  inbox.provider_config.provider_type === 'evolution') {
+                window.__evolutionInboxIds.add(inbox.id);
+              }
+              // Fallback: legacy Channel::Whatsapp Evolution inboxes
+              if (inbox.channel_type === 'Channel::Whatsapp' &&
+                  inbox.provider_config &&
+                  inbox.provider_config.provider_type === 'evolution') {
+                window.__evolutionInboxIds.add(inbox.id);
+              }
+            });
+          }
+        }).catch(function() {});
+        return response;
+      }
+
+      return response;
+    });
+  };
+})();
+    </script>
+
+    <!-- FarolChat: Payment button on Suspended Account page -->
+    <script type="text/javascript">
+(function() {
+  'use strict';
+
+  function isSuspendedPage() {
+    var el = document.querySelector('.empty-state');
+    if (!el) return false;
+    var h3 = el.querySelector('h3');
+    if (!h3) return false;
+    var txt = h3.textContent.trim();
+    return txt === 'Conta Suspensa' || txt === 'Account Suspended';
+  }
+
+  function getAccountId() {
+    var m = window.location.href.match(/accounts\/(\d+)/);
+    return m ? m[1] : null;
+  }
+
+  function getAuthHeaders() {
+    var h = { 'Content-Type': 'application/json' };
+    // Read auth from cw_d_session_info cookie (same method as billing panel)
+    try {
+      var cookies = document.cookie.split(';');
+      for (var i = 0; i < cookies.length; i++) {
+        var c = cookies[i].trim();
+        if (c.indexOf('cw_d_session_info=') === 0) {
+          var d = JSON.parse(decodeURIComponent(c.substring(18)));
+          if (d && d['access-token']) {
+            h['access-token'] = d['access-token'];
+            h['token-type'] = d['token-type'];
+            h['client'] = d['client'];
+            h['expiry'] = d['expiry'];
+            h['uid'] = d['uid'];
+            return h;
+          }
+        }
+      }
+    } catch(e) {}
+    return h;
+  }
+
+  function injectPaymentButton() {
+    if (document.getElementById('farol-suspended-payment-btn')) return;
+    var emptyState = document.querySelector('.empty-state');
+    if (!emptyState) return;
+
+    // Update the message text
+    var msg = emptyState.querySelector('p');
+    if (msg) {
+      msg.textContent = 'Sua conta está suspensa por falta de pagamento. Regularize sua situação clicando no botão abaixo.';
+    }
+
+    var container = document.createElement('div');
+    container.id = 'farol-suspended-payment-btn';
+    container.style.cssText = 'text-align:center;margin-top:24px;';
+
+    var btn = document.createElement('button');
+    btn.innerHTML = '💳 Regularizar Pagamento';
+    btn.style.cssText = 'background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;padding:14px 32px;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;box-shadow:0 4px 14px rgba(99,102,241,0.4);transition:all 0.2s;';
+    btn.onmouseenter = function() { btn.style.transform = 'translateY(-2px)'; btn.style.boxShadow = '0 6px 20px rgba(99,102,241,0.5)'; };
+    btn.onmouseleave = function() { btn.style.transform = 'translateY(0)'; btn.style.boxShadow = '0 4px 14px rgba(99,102,241,0.4)'; };
+
+    btn.onclick = function() {
+      btn.disabled = true;
+      btn.innerHTML = '⏳ Redirecionando...';
+
+      var accountId = getAccountId();
+      if (!accountId) {
+        btn.innerHTML = '❌ Erro: conta não identificada';
+        btn.disabled = false;
+        return;
+      }
+
+      var hdrs = getAuthHeaders();
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', '/enterprise/api/v1/accounts/' + accountId + '/checkout', true);
+      for (var k in hdrs) { xhr.setRequestHeader(k, hdrs[k]); }
+
+      xhr.onload = function() {
+        try {
+          var data = JSON.parse(xhr.responseText);
+          if (data.redirect_url) {
+            window.open(data.redirect_url, '_blank');
+            btn.innerHTML = '💳 Regularizar Pagamento';
+            btn.disabled = false;
+          } else if (data.error) {
+            btn.innerHTML = '❌ ' + data.error;
+            setTimeout(function() { btn.innerHTML = '💳 Regularizar Pagamento'; btn.disabled = false; }, 3000);
+          } else {
+            btn.innerHTML = '💳 Regularizar Pagamento';
+            btn.disabled = false;
+          }
+        } catch(e) {
+          btn.innerHTML = '❌ Erro ao processar';
+          setTimeout(function() { btn.innerHTML = '💳 Regularizar Pagamento'; btn.disabled = false; }, 3000);
+        }
+      };
+
+      xhr.onerror = function() {
+        btn.innerHTML = '❌ Erro de conexão';
+        setTimeout(function() { btn.innerHTML = '💳 Regularizar Pagamento'; btn.disabled = false; }, 3000);
+      };
+
+      xhr.send(JSON.stringify({}));
+    };
+
+    container.appendChild(btn);
+    emptyState.appendChild(container);
+  }
+
+  // Monitor for suspended page
+  setInterval(function() {
+    if (isSuspendedPage()) {
+      injectPaymentButton();
+    }
+  }, 1500);
+})();
+    </script>
+
+    <!-- FarolChat Billing Page Enhancement v3 - Interactive Quantity Management -->
+    <script type="text/javascript">
+// ===== FarolChat Billing v3 =====
+// Interactive quantity editor for agents/inboxes with Stripe sync
+(function() {
+  'use strict';
+
+  var billingInjected = false;
+  var capturedLimits = null;
+  var isUpdating = false;
+
+  // ---- Auth helpers ----
+  function getAccountId() {
+    var m = window.location.pathname.match(/\/accounts\/(\d+)/);
+    return m ? m[1] : null;
+  }
+
+  function getAuthData() {
+    var cookies = document.cookie.split(';');
+    for (var i = 0; i < cookies.length; i++) {
+      var c = cookies[i].trim();
+      if (c.indexOf('cw_d_session_info=') === 0) {
+        try { return JSON.parse(decodeURIComponent(c.substring(18))); } catch(e) {}
+      }
+    }
+    // fallback: try user_id from cw_d_<uid> cookies
+    return null;
+  }
+
+  function authHeaders() {
+    var h = { 'Content-Type': 'application/json' };
+    var a = getAuthData();
+    if (a) {
+      h['access-token'] = a['access-token'];
+      h['token-type'] = a['token-type'];
+      h['client'] = a['client'];
+      h['expiry'] = a['expiry'];
+      h['uid'] = a['uid'];
+    }
+    return h;
+  }
+
+  // ---- Intercept XHR to capture limits ----
+  var _origOpen = XMLHttpRequest.prototype.open;
+  var _origSend = XMLHttpRequest.prototype.send;
+
+  XMLHttpRequest.prototype.open = function(method, url) {
+    this._fUrl = url;
+    return _origOpen.apply(this, arguments);
+  };
+  XMLHttpRequest.prototype.send = function() {
+    var xhr = this;
+    if (xhr._fUrl && xhr._fUrl.indexOf('/limits') !== -1 && xhr._fUrl.indexOf('/enterprise/') !== -1) {
+      xhr.addEventListener('load', function() {
+        try {
+          var d = JSON.parse(xhr.responseText);
+          if (d && d.limits) {
+            capturedLimits = d.limits;
+            setTimeout(function() { tryRenderPanel(); }, 400);
+          }
+        } catch(e) {}
+      });
+    }
+    return _origSend.apply(this, arguments);
+  };
+
+  function isBillingPage() {
+    return window.location.href.indexOf('/settings/billing') !== -1;
+  }
+
+  function injectStyles() {
+    if (document.getElementById('farol-billing-css')) return;
+    var s = document.createElement('style');
+    s.id = 'farol-billing-css';
+    s.textContent = '\
+.fbp{background:var(--w-25,#f8fafc);border:1px solid var(--s-75,#e2e8f0);border-radius:16px;padding:24px;margin-top:20px}\
+.dark .fbp{background:var(--w-600,#1e293b);border-color:var(--s-200,#334155)}\
+.fbp-title{font-size:18px;font-weight:700;margin:0 0 6px;color:var(--s-900,#0f172a);display:flex;align-items:center;gap:8px}\
+.dark .fbp-title{color:var(--s-50,#f8fafc)}\
+.fbp-sub{font-size:13px;color:var(--s-500,#64748b);margin:0 0 20px}\
+.fbp-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}\
+@media(max-width:640px){.fbp-grid{grid-template-columns:1fr}}\
+.fbp-card{background:var(--w-50,#fff);border:1px solid var(--s-75,#e2e8f0);border-radius:12px;padding:20px;position:relative;transition:box-shadow .2s}\
+.fbp-card:hover{box-shadow:0 2px 12px rgba(0,0,0,.06)}\
+.dark .fbp-card{background:var(--w-700,#0f172a);border-color:var(--s-200,#334155)}\
+.dark .fbp-card:hover{box-shadow:0 2px 12px rgba(0,0,0,.3)}\
+.fbp-icon{font-size:28px;margin-bottom:8px}\
+.fbp-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--s-500,#64748b);margin-bottom:12px}\
+.dark .fbp-label{color:var(--s-400,#94a3b8)}\
+.fbp-qty-row{display:flex;align-items:center;gap:12px;margin-bottom:12px}\
+.fbp-qty-btn{width:36px;height:36px;border-radius:8px;border:1px solid var(--s-200,#e2e8f0);background:var(--w-50,#fff);color:var(--s-700,#334155);font-size:20px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;user-select:none}\
+.fbp-qty-btn:hover{background:var(--b-50,#eff6ff);border-color:var(--b-400,#60a5fa);color:var(--b-600,#2563eb)}\
+.fbp-qty-btn:active{transform:scale(.92)}\
+.fbp-qty-btn:disabled{opacity:.35;cursor:not-allowed;transform:none}\
+.dark .fbp-qty-btn{background:var(--w-600,#1e293b);border-color:var(--s-500,#64748b);color:var(--s-200,#e2e8f0)}\
+.dark .fbp-qty-btn:hover{background:var(--b-900,#1e3a5f);border-color:var(--b-400,#60a5fa)}\
+.fbp-qty-val{font-size:32px;font-weight:800;color:var(--s-900,#0f172a);min-width:48px;text-align:center;line-height:1}\
+.dark .fbp-qty-val{color:var(--s-50,#f8fafc)}\
+.fbp-info{font-size:12px;color:var(--s-500,#64748b);line-height:1.5}\
+.fbp-info b{color:var(--s-700,#334155);font-weight:600}\
+.dark .fbp-info b{color:var(--s-200,#e2e8f0)}\
+.fbp-bar{height:6px;background:var(--s-100,#e2e8f0);border-radius:4px;margin-top:12px;overflow:hidden}\
+.dark .fbp-bar{background:var(--s-700,#334155)}\
+.fbp-bar-fill{height:100%;border-radius:4px;transition:width .4s ease}\
+.fbp-price{font-size:11px;color:var(--s-400,#94a3b8);margin-top:6px}\
+.fbp-actions{display:flex;gap:12px;margin-top:20px;flex-wrap:wrap;align-items:center}\
+.fbp-btn{padding:10px 24px;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;border:none;transition:all .2s;display:inline-flex;align-items:center;gap:6px}\
+.fbp-btn-primary{background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;box-shadow:0 2px 8px rgba(59,130,246,.3)}\
+.fbp-btn-primary:hover{background:linear-gradient(135deg,#2563eb,#1d4ed8);box-shadow:0 4px 12px rgba(59,130,246,.4);transform:translateY(-1px)}\
+.fbp-btn-primary:active{transform:translateY(0)}\
+.fbp-btn-primary:disabled{opacity:.5;cursor:not-allowed;transform:none}\
+.fbp-btn-secondary{background:var(--w-50,#fff);color:var(--s-700,#334155);border:1px solid var(--s-200,#e2e8f0);box-shadow:0 1px 3px rgba(0,0,0,.06)}\
+.fbp-btn-secondary:hover{background:var(--s-50,#f8fafc);border-color:var(--s-300,#cbd5e1)}\
+.dark .fbp-btn-secondary{background:var(--w-600,#1e293b);color:var(--s-200,#e2e8f0);border-color:var(--s-500,#64748b)}\
+.fbp-btn-pay{background:linear-gradient(135deg,#10b981,#059669);color:#fff;box-shadow:0 2px 8px rgba(16,185,129,.3)}\
+.fbp-btn-pay:hover{background:linear-gradient(135deg,#059669,#047857);box-shadow:0 4px 12px rgba(16,185,129,.4);transform:translateY(-1px)}\
+.fbp-msg{padding:10px 16px;border-radius:8px;font-size:13px;font-weight:500;margin-top:12px;display:none;animation:fbp-slide .3s ease}\
+.fbp-msg-ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}\
+.dark .fbp-msg-ok{background:#064e3b;color:#a7f3d0;border-color:#065f46}\
+.fbp-msg-err{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\
+.dark .fbp-msg-err{background:#450a0a;color:#fecaca;border-color:#991b1b}\
+.fbp-msg-warn{background:#fffbeb;color:#92400e;border:1px solid #fde68a}\
+.dark .fbp-msg-warn{background:#451a03;color:#fde68a;border-color:#92400e}\
+.fbp-total{font-size:14px;color:var(--s-600,#475569);margin-top:16px;padding:12px 16px;background:var(--s-50,#f8fafc);border-radius:8px;display:flex;justify-content:space-between;align-items:center}\
+.dark .fbp-total{background:var(--w-700,#0f172a);color:var(--s-300,#cbd5e1)}\
+.fbp-total-val{font-size:20px;font-weight:700;color:var(--b-600,#2563eb)}\
+.dark .fbp-total-val{color:var(--b-400,#60a5fa)}\
+.fbp-changed{border-color:var(--b-400,#60a5fa)!important;box-shadow:0 0 0 2px rgba(59,130,246,.15)!important}\
+.fbp-spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:fbp-spin .6s linear infinite}\
+@keyframes fbp-spin{to{transform:rotate(360deg)}}\
+@keyframes fbp-slide{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}\
+.fbp-badge{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;margin-left:8px}\
+.fbp-badge-active{background:#dcfce7;color:#166534}\
+.dark .fbp-badge-active{background:#064e3b;color:#86efac}\
+.fbp-badge-pending{background:#fef9c3;color:#854d0e}\
+.dark .fbp-badge-pending{background:#451a03;color:#fde68a}\
+.fbp-badge-suspended{background:#fee2e2;color:#991b1b}\
+.dark .fbp-badge-suspended{background:#450a0a;color:#fca5a5}\
+';
+    document.head.appendChild(s);
+  }
+
+  function tryRenderPanel() {
+    if (!isBillingPage()) return;
+    if (document.getElementById('farol-billing-panel')) return;
+    var limits = capturedLimits;
+    if (!limits) { parseLimitsFromDOM(); return; }
+    renderPanel(limits);
+  }
+
+  function parseLimitsFromDOM() {
+    // Try to fetch limits from API directly
+    fetchLimitsFromAPI();
+  }
+
+  function fetchLimitsFromAPI() {
+    var m = window.location.href.match(/accounts\/(\d+)/);
+    if (!m) return;
+    var accountId = m[1];
+    var url = '/enterprise/api/v1/accounts/' + accountId + '/limits';
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', url, true);
+    var hdrs = getHeaders();
+    for (var k in hdrs) { xhr.setRequestHeader(k, hdrs[k]); }
+    xhr.onload = function() {
+      try {
+        var d = JSON.parse(xhr.responseText);
+        if (d && d.limits) {
+          capturedLimits = d.limits;
+          renderPanel(d.limits);
+        }
+      } catch(e) {}
+    };
+    xhr.send();
+  }
+
+  function renderPanel(limits) {
+    if (document.getElementById('farol-billing-panel')) return;
+
+    var ag = limits.agents || {};
+    var ib = limits.inboxes || {};
+    var aAllowed = ag.allowed || 0, aUsed = ag.consumed || 0;
+    var iAllowed = ib.allowed || 0, iUsed = ib.consumed || 0;
+
+    // State
+    var newAgents = aAllowed;
+    var newInboxes = iAllowed;
+
+    var panel = document.createElement('div');
+    panel.id = 'farol-billing-panel';
+    panel.className = 'fbp';
+
+    function barColor(pct) {
+      return pct >= 90 ? '#ef4444' : pct >= 70 ? '#f59e0b' : '#10b981';
+    }
+
+    function calcTotal(a, i) {
+      return (a * 29) + (i * 49.9);
+    }
+
+    function render() {
+      var aP = newAgents > 0 ? Math.min((aUsed / newAgents) * 100, 100) : 0;
+      var iP = newInboxes > 0 ? Math.min((iUsed / newInboxes) * 100, 100) : 0;
+      var changed = newAgents !== aAllowed || newInboxes !== iAllowed;
+      var total = calcTotal(newAgents, newInboxes);
+
+      panel.innerHTML = '\
+<div class="fbp-title">\u2699\uFE0F Gerenciar Assinatura</div>\
+<div class="fbp-sub">Ajuste a quantidade de usu\u00E1rios e conex\u00F5es da sua conta. As altera\u00E7\u00F5es s\u00E3o sincronizadas com o Stripe automaticamente.</div>\
+<div class="fbp-grid">\
+  <div class="fbp-card' + (newAgents !== aAllowed ? ' fbp-changed' : '') + '" id="fbp-agents-card">\
+    <div class="fbp-icon">\uD83D\uDC64</div>\
+    <div class="fbp-label">Usu\u00E1rios (Agentes)</div>\
+    <div class="fbp-qty-row">\
+      <button class="fbp-qty-btn" id="fbp-a-minus" title="Diminuir">\u2212</button>\
+      <div class="fbp-qty-val" id="fbp-a-val">' + newAgents + '</div>\
+      <button class="fbp-qty-btn" id="fbp-a-plus" title="Aumentar">+</button>\
+    </div>\
+    <div class="fbp-info"><b>' + aUsed + '</b> em uso de <b>' + newAgents + '</b> liberados</div>\
+    <div class="fbp-bar"><div class="fbp-bar-fill" style="width:' + aP + '%;background:' + barColor(aP) + '"></div></div>\
+    <div class="fbp-price">R$ 29,00/m\u00EAs por agente</div>\
+  </div>\
+  <div class="fbp-card' + (newInboxes !== iAllowed ? ' fbp-changed' : '') + '" id="fbp-inboxes-card">\
+    <div class="fbp-icon">\uD83D\uDCF1</div>\
+    <div class="fbp-label">Conex\u00F5es (Caixas de Entrada)</div>\
+    <div class="fbp-qty-row">\
+      <button class="fbp-qty-btn" id="fbp-i-minus" title="Diminuir">\u2212</button>\
+      <div class="fbp-qty-val" id="fbp-i-val">' + newInboxes + '</div>\
+      <button class="fbp-qty-btn" id="fbp-i-plus" title="Aumentar">+</button>\
+    </div>\
+    <div class="fbp-info"><b>' + iUsed + '</b> em uso de <b>' + newInboxes + '</b> liberadas</div>\
+    <div class="fbp-bar"><div class="fbp-bar-fill" style="width:' + iP + '%;background:' + barColor(iP) + '"></div></div>\
+    <div class="fbp-price">R$ 49,90/m\u00EAs por conex\u00E3o</div>\
+  </div>\
+</div>\
+<div class="fbp-total">\
+  <span>Total mensal estimado:</span>\
+  <span class="fbp-total-val">R$ ' + total.toFixed(2).replace('.', ',') + '</span>\
+</div>\
+<div class="fbp-actions">\
+  <button class="fbp-btn fbp-btn-primary" id="fbp-save" ' + (changed ? '' : 'disabled') + '>\
+    ' + (isUpdating ? '<span class="fbp-spinner"></span> Salvando...' : '\uD83D\uDCBE Salvar Altera\u00E7\u00F5es') + '\
+  </button>\
+  <button class="fbp-btn fbp-btn-pay" id="fbp-pay">\uD83D\uDCB3 Ir para Pagamento</button>\
+  ' + (changed ? '<button class="fbp-btn fbp-btn-secondary" id="fbp-reset">\u21A9 Desfazer</button>' : '') + '\
+</div>\
+<div class="fbp-msg" id="fbp-msg"></div>';
+
+      // Bind events
+      setTimeout(function() {
+        var aMinus = document.getElementById('fbp-a-minus');
+        var aPlus = document.getElementById('fbp-a-plus');
+        var iMinus = document.getElementById('fbp-i-minus');
+        var iPlus = document.getElementById('fbp-i-plus');
+        var saveBtn = document.getElementById('fbp-save');
+        var payBtn = document.getElementById('fbp-pay');
+        var resetBtn = document.getElementById('fbp-reset');
+
+        if (aMinus) aMinus.onclick = function() {
+          if (newAgents > Math.max(aUsed, 1)) { newAgents--; render(); }
+          else showMsg('Não é possível reduzir abaixo de ' + Math.max(aUsed, 1) + '. ' + (aUsed > 1 ? 'Remova agentes antes.' : ''), 'warn');
+        };
+        if (aPlus) aPlus.onclick = function() { newAgents++; render(); };
+        if (iMinus) iMinus.onclick = function() {
+          if (newInboxes > Math.max(iUsed, 1)) { newInboxes--; render(); }
+          else showMsg('Não é possível reduzir abaixo de ' + Math.max(iUsed, 1) + '. ' + (iUsed > 1 ? 'Remova caixas de entrada antes.' : ''), 'warn');
+        };
+        if (iPlus) iPlus.onclick = function() { newInboxes++; render(); };
+
+        if (saveBtn) saveBtn.onclick = function() { doSave(); };
+        if (payBtn) payBtn.onclick = function() { doCheckout(); };
+        if (resetBtn) resetBtn.onclick = function() { newAgents = aAllowed; newInboxes = iAllowed; render(); showMsg('Alterações desfeitas.', 'ok'); };
+      }, 50);
+    }
+
+    function showMsg(text, type) {
+      var el = document.getElementById('fbp-msg');
+      if (!el) return;
+      el.className = 'fbp-msg fbp-msg-' + (type || 'ok');
+      el.textContent = text;
+      el.style.display = 'block';
+      if (type !== 'err') setTimeout(function() { el.style.display = 'none'; }, 5000);
+    }
+
+    function doSave() {
+      if (isUpdating) return;
+      if (newAgents === aAllowed && newInboxes === iAllowed) return;
+
+      isUpdating = true;
+      render();
+
+      var accountId = getAccountId();
+      fetch('/enterprise/api/v1/accounts/' + accountId + '/update_quantities', {
+        method: 'POST',
+        headers: authHeaders(),
+        credentials: 'same-origin',
+        body: JSON.stringify({ agents: newAgents, inboxes: newInboxes })
+      })
+      .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+      .then(function(res) {
+        isUpdating = false;
+        if (res.ok && res.data.success) {
+          // Update local state
+          aAllowed = res.data.agents.allowed;
+          aUsed = res.data.agents.consumed;
+          iAllowed = res.data.inboxes.allowed;
+          iUsed = res.data.inboxes.consumed;
+          newAgents = aAllowed;
+          newInboxes = iAllowed;
+          render();
+          showMsg('\u2705 ' + res.data.message, 'ok');
+
+          // If there's a new invoice to pay, show link
+          if (res.data.invoice_url) {
+            setTimeout(function() {
+              showMsg('\uD83D\uDCE8 Nova fatura gerada. Clique em "Ir para Pagamento" para pagar.', 'warn');
+            }, 3000);
+          }
+        } else {
+          render();
+          showMsg('\u274C ' + (res.data.error || 'Erro desconhecido.'), 'err');
+        }
+      })
+      .catch(function(e) {
+        isUpdating = false;
+        render();
+        showMsg('\u274C Erro de conexão: ' + e.message, 'err');
+      });
+    }
+
+    function doCheckout() {
+      var accountId = getAccountId();
+      var btn = document.getElementById('fbp-pay');
+      if (btn) { btn.disabled = true; btn.innerHTML = '<span class="fbp-spinner"></span> Abrindo...'; }
+
+      fetch('/enterprise/api/v1/accounts/' + accountId + '/checkout', {
+        method: 'POST',
+        headers: authHeaders(),
+        credentials: 'same-origin'
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.redirect_url) {
+          window.open(d.redirect_url, '_blank');
+        } else if (d.error) {
+          showMsg('\u274C ' + d.error, 'err');
+        }
+        if (btn) { btn.disabled = false; btn.innerHTML = '\uD83D\uDCB3 Ir para Pagamento'; }
+      })
+      .catch(function(e) {
+        showMsg('\u274C Erro: ' + e.message, 'err');
+        if (btn) { btn.disabled = false; btn.innerHTML = '\uD83D\uDCB3 Ir para Pagamento'; }
+      });
+    }
+
+    // Initial render
+    render();
+
+    // Insert into page
+    var inserted = false;
+    var sections = document.querySelectorAll('section, .billing-item, [class*="billing"]');
+    if (sections.length === 0) sections = document.querySelectorAll('.grid, .flex');
+
+    for (var i = 0; i < sections.length; i++) {
+      var sec = sections[i];
+      if (sec.textContent.indexOf('Profissional') !== -1 ||
+          sec.textContent.indexOf('portal de cobran') !== -1 ||
+          sec.textContent.indexOf('Manage subscription') !== -1 ||
+          sec.textContent.indexOf('assinatura') !== -1 ||
+          sec.textContent.indexOf('Plano') !== -1) {
+        sec.parentElement.insertBefore(panel, sec.nextSibling);
+        inserted = true;
+        break;
+      }
+    }
+
+    if (!inserted) {
+      var contentBox = document.querySelector('.column.content-box') ||
+                       document.querySelector('[class*="content"]') ||
+                       document.querySelector('main');
+      if (contentBox) {
+        var firstChild = contentBox.querySelector('section, .grid, > div');
+        if (firstChild) {
+          firstChild.parentElement.insertBefore(panel, firstChild.nextSibling);
+          inserted = true;
+        }
+      }
+    }
+
+    if (!inserted) {
+      var appDiv = document.querySelector('#app');
+      if (appDiv) {
+        var deepest = appDiv.querySelector('.column.content-box') || appDiv;
+        deepest.appendChild(panel);
+      }
+    }
+
+    // Replace labels
+    setTimeout(replaceLabels, 200);
+  }
+
+  function replaceLabels() {
+    var allEls = document.querySelectorAll('span, p, div, label, h4, h5, h6');
+    for (var i = 0; i < allEls.length; i++) {
+      var el = allEls[i];
+      if (el.children.length === 0) {
+        var txt = el.textContent.trim();
+        if (txt === 'N\u00FAmero de assentos' || txt === 'Seat Count') el.textContent = 'Assinatura';
+        if (txt === 'My Plan' || txt === 'Meu plano') el.textContent = 'Meu Plano';
+      }
+    }
+    // Hide "Precisa de ajuda?" / "Need help?" section and "Fale conosco" button
+    hideChatWithUsSection();
+  }
+
+  function hideChatWithUsSection() {
+    var allHeaders = document.querySelectorAll('h4, h5, h6, span, p, div');
+    for (var i = 0; i < allHeaders.length; i++) {
+      var el = allHeaders[i];
+      var txt = (el.textContent || '').trim();
+      if (txt === 'Precisa de ajuda?' || txt === 'Need help?' ||
+          txt === 'Fale conosco no chat' || txt === 'Chat with us') {
+        // Walk up to find the section/container and hide it
+        var parent = el;
+        for (var j = 0; j < 6; j++) {
+          if (!parent.parentElement) break;
+          parent = parent.parentElement;
+          // Stop at section-level containers
+          if (parent.tagName === 'SECTION' ||
+              (parent.classList && (parent.classList.contains('billing--container') ||
+               parent.classList.contains('chat-with-us') ||
+               parent.classList.contains('grid')))) {
+            break;
+          }
+        }
+        if (parent && parent !== document.body) {
+          parent.style.display = 'none';
+        }
+      }
+    }
+  }
+
+  // ---- Page monitoring ----
+  var lastUrl = '';
+  function monitor() {
+    var cur = window.location.href;
+    if (cur !== lastUrl) {
+      lastUrl = cur;
+      billingInjected = false;
+      var old = document.getElementById('farol-billing-panel');
+      if (old) old.remove();
+      capturedLimits = null;
+    }
+
+    if (!isBillingPage()) { billingInjected = false; return; }
+    if (billingInjected && document.getElementById('farol-billing-panel')) { replaceLabels(); return; }
+
+    var hasContent = document.querySelector('.grid, section, [class*="billing"]');
+    if (!hasContent) return;
+
+    billingInjected = true;
+    injectStyles();
+
+    setTimeout(function() { tryRenderPanel(); replaceLabels(); }, 1500);
+  }
+
+  setInterval(monitor, 2000);
+  if (document.readyState !== 'loading') {
+    setTimeout(monitor, 3000);
+  } else {
+    document.addEventListener('DOMContentLoaded', function() { setTimeout(monitor, 3000); });
+  }
+})();
+
+    </script>
+
+    <!-- FarolChat: WhatsApp Cloud - Update WABA ID & Phone Number ID -->
+    <script type="text/javascript">
+(function() {
+  'use strict';
+
+  var INJECTED_MARKER = '__farolchat_waba_injected';
+  var checkInterval = null;
+
+  // Extract account_id and inbox_id from the current URL
+  function getIdsFromUrl() {
+    // URL pattern: /app/accounts/:account_id/settings/inboxes/:inbox_id
+    var match = window.location.href.match(/\/app\/accounts\/(\d+)\/settings\/inboxes\/(\d+)/);
+    if (match) return { accountId: match[1], inboxId: match[2] };
+    return null;
+  }
+
+  // Get auth token from cookie or meta tag
+  function getAuthHeaders() {
+    var headers = { 'Content-Type': 'application/json' };
+    // Chatwoot uses cookie-based auth for frontend API calls
+    var metaToken = document.querySelector('meta[name="csrf-token"]');
+    if (metaToken) {
+      headers['X-CSRF-Token'] = metaToken.getAttribute('content');
+    }
+    // Also try to get user access token from localStorage
+    try {
+      var userData = Object.keys(localStorage).find(function(k) { return k.match(/cw_d_/); });
+      if (userData) {
+        var parsed = JSON.parse(localStorage.getItem(userData));
+        if (parsed && parsed.access_token) {
+          headers['api_access_token'] = parsed.access_token;
+        }
+      }
+    } catch(e) {}
+    // Fallback: check chatwoot auth keys
+    try {
+      var keys = Object.keys(localStorage);
+      for (var i = 0; i < keys.length; i++) {
+        if (keys[i].indexOf('access_token') !== -1 || keys[i].indexOf('user:') !== -1) {
+          try {
+            var val = JSON.parse(localStorage.getItem(keys[i]));
+            if (val && val.access_token) {
+              headers['api_access_token'] = val.access_token;
+              break;
+            }
+          } catch(e2) {}
+        }
+      }
+    } catch(e) {}
+    return headers;
+  }
+
+  // Fetch current inbox data to get provider_config
+  function fetchInboxData(accountId, inboxId, callback) {
+    var url = '/auth/sign_in';
+    // Use the API endpoint
+    url = '/api/v1/accounts/' + accountId + '/inboxes/' + inboxId;
+    fetch(url, { method: 'GET', headers: getAuthHeaders(), credentials: 'same-origin' })
+      .then(function(r) { return r.json(); })
+      .then(function(data) { callback(null, data); })
+      .catch(function(err) { callback(err, null); });
+  }
+
+  // Update inbox provider_config
+  function updateProviderConfig(accountId, inboxId, newConfig, callback) {
+    var url = '/api/v1/accounts/' + accountId + '/inboxes/' + inboxId;
+    var body = JSON.stringify({
+      channel: {
+        provider_config: newConfig
+      }
+    });
+    fetch(url, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      credentials: 'same-origin',
+      body: body
+    })
+    .then(function(r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
+    .then(function(data) { callback(null, data); })
+    .catch(function(err) { callback(err, null); });
+  }
+
+  // Create a settings section HTML (matching Chatwoot's SettingsSection style)
+  function createSettingsSection(title, subtitle, inputId, placeholder, buttonText, currentValue) {
+    var section = document.createElement('div');
+    section.className = 'settings--section';
+    section.style.cssText = 'padding: 1rem 0; border-bottom: 1px solid var(--color-border-light, #e8e8e8);';
+
+    var titleEl = document.createElement('div');
+    titleEl.style.cssText = 'margin-bottom: 0.5rem;';
+    titleEl.innerHTML = '<h4 style="font-size: 0.875rem; font-weight: 600; margin: 0 0 0.25rem 0; color: var(--color-text, #1f2d3d);">' + title + '</h4>' +
+      '<p style="font-size: 0.8125rem; color: var(--color-text-light, #6e6f73); margin: 0;">' + subtitle + '</p>';
+    section.appendChild(titleEl);
+
+    // Display current value if exists
+    if (currentValue) {
+      var currentDisplay = document.createElement('div');
+      currentDisplay.style.cssText = 'margin-bottom: 0.75rem; padding: 0.5rem 0.75rem; background: var(--color-background-light, #f5f7f9); border-radius: 0.375rem; font-family: monospace; font-size: 0.8125rem; color: var(--color-text, #1f2d3d); border: 1px solid var(--color-border-light, #e8e8e8); word-break: break-all;';
+      currentDisplay.textContent = currentValue;
+      currentDisplay.id = inputId + '_current';
+      section.appendChild(currentDisplay);
+    }
+
+    var row = document.createElement('div');
+    row.style.cssText = 'display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem;';
+
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.id = inputId;
+    input.placeholder = placeholder;
+    input.style.cssText = 'flex: 1; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border, #c0ccda); border-radius: 0.375rem; font-size: 0.875rem; outline: none; background: var(--color-background, #fff); color: var(--color-text, #1f2d3d);';
+    input.addEventListener('focus', function() { this.style.borderColor = 'var(--w-500, #1f93ff)'; });
+    input.addEventListener('blur', function() { this.style.borderColor = 'var(--color-border, #c0ccda)'; });
+    row.appendChild(input);
+
+    var btn = document.createElement('button');
+    btn.textContent = buttonText;
+    btn.id = inputId + '_btn';
+    btn.style.cssText = 'padding: 0.5rem 1rem; background: var(--w-500, #1f93ff); color: white; border: none; border-radius: 0.375rem; font-size: 0.875rem; font-weight: 500; cursor: pointer; white-space: nowrap; transition: background 0.2s;';
+    btn.addEventListener('mouseenter', function() { this.style.background = 'var(--w-600, #1976d2)'; });
+    btn.addEventListener('mouseleave', function() { this.style.background = 'var(--w-500, #1f93ff)'; });
+    row.appendChild(btn);
+
+    section.appendChild(row);
+    return section;
+  }
+
+  // Show toast notification
+  function showToast(message, isError) {
+    var toast = document.createElement('div');
+    toast.style.cssText = 'position: fixed; top: 2rem; right: 2rem; z-index: 99999; padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-size: 0.875rem; font-weight: 500; color: white; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transition: opacity 0.3s;';
+    toast.style.background = isError ? '#ff4444' : '#44b553';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(function() {
+      toast.style.opacity = '0';
+      setTimeout(function() { toast.remove(); }, 300);
+    }, 3000);
+  }
+
+  // Main injection function
+  function tryInject() {
+    // Only run on inbox settings pages
+    var ids = getIdsFromUrl();
+    if (!ids) return;
+
+    // Already injected?
+    if (document.getElementById(INJECTED_MARKER)) return;
+
+    // Strategy: Detect WhatsApp Cloud inbox config page
+    // Case 1 (Manual Setup): Has API Key input field
+    // Case 2 (Embedded Signup): Has Reconfigure button
+    // Both cases: Has Templates Sync button
+    
+    var mxContainer = null;
+    var isWhatsAppPage = false;
+
+    // Method 1: Find API Key input (Manual Setup)
+    var allInputs = document.querySelectorAll('input[placeholder]');
+    var apiKeyInput = null;
+    for (var i = 0; i < allInputs.length; i++) {
+      var ph = allInputs[i].placeholder.toLowerCase();
+      if (ph.includes('api') && (ph.includes('key') || ph.includes('chave'))) {
+        apiKeyInput = allInputs[i];
+        break;
+      }
+    }
+
+    if (apiKeyInput) {
+      isWhatsAppPage = true;
+      mxContainer = apiKeyInput.closest('.mx-8');
+    }
+
+    // Method 2: Find Reconfigure button or Templates Sync button (Embedded Signup)
+    if (!isWhatsAppPage) {
+      var allButtons = document.querySelectorAll('button');
+      for (var b = 0; b < allButtons.length; b++) {
+        var btnText = (allButtons[b].textContent || '').trim().toLowerCase();
+        if (btnText.includes('reconfigure') || btnText.includes('reconfigurar') ||
+            btnText.includes('sync template') || btnText.includes('sincronizar template')) {
+          var possibleContainer = allButtons[b].closest('.mx-8');
+          if (possibleContainer) {
+            // Verify this is a WhatsApp page by checking for WhatsApp-related text
+            var containerText = (possibleContainer.textContent || '').toLowerCase();
+            if (containerText.includes('whatsapp') || containerText.includes('webhook') || containerText.includes('template')) {
+              mxContainer = possibleContainer;
+              isWhatsAppPage = true;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    if (!isWhatsAppPage || !mxContainer) return;
+
+    // Fetch current inbox data to know current values
+    fetchInboxData(ids.accountId, ids.inboxId, function(err, inboxData) {
+      if (err || !inboxData) {
+        console.error('[FarolChat WABA] Error fetching inbox:', err);
+        return;
+      }
+
+      var providerConfig = inboxData.provider_config || {};
+      var currentWabaId = providerConfig.business_account_id || '';
+      var currentPhoneNumberId = providerConfig.phone_number_id || '';
+
+      // Don't inject for embedded signup inboxes that use different flow
+      // We inject for BOTH manual and embedded signup since user wants to update these IDs
+      
+      // Create marker element
+      var marker = document.createElement('div');
+      marker.id = INJECTED_MARKER;
+      marker.style.display = 'none';
+
+      // Create WABA ID section
+      var wabaSection = createSettingsSection(
+        'ID da Conta do WhatsApp Business (WABA ID)',
+        'Este é o ID da sua conta do WhatsApp Business. Atualize para trocar a conta Meta vinculada sem perder as conversas.',
+        'farolchat_waba_id',
+        'Digite o novo WABA ID aqui',
+        'Atualizar',
+        currentWabaId
+      );
+
+      // Create Phone Number ID section
+      var phoneSection = createSettingsSection(
+        'ID do Número de Telefone',
+        'Este é o ID do número de telefone registrado no WhatsApp Business. Atualize para trocar o número vinculado sem perder as conversas.',
+        'farolchat_phone_number_id',
+        'Digite o novo Phone Number ID aqui',
+        'Atualizar',
+        currentPhoneNumberId
+      );
+
+      // Find the Templates Sync section to insert before it
+      var templatesSyncSection = null;
+      var allButtons = mxContainer.querySelectorAll('button');
+      for (var b = 0; b < allButtons.length; b++) {
+        var btnText = allButtons[b].textContent.trim().toLowerCase();
+        if (btnText.includes('sync') || btnText.includes('sincronizar') || btnText.includes('template')) {
+          templatesSyncSection = allButtons[b].closest('.settings--section') || allButtons[b].parentElement.parentElement.parentElement;
+          break;
+        }
+      }
+
+      // Insert sections
+      if (templatesSyncSection && templatesSyncSection.parentElement === mxContainer) {
+        mxContainer.insertBefore(wabaSection, templatesSyncSection);
+        mxContainer.insertBefore(phoneSection, templatesSyncSection);
+      } else {
+        // Fallback: append at the end of the container
+        mxContainer.appendChild(wabaSection);
+        mxContainer.appendChild(phoneSection);
+      }
+      mxContainer.appendChild(marker);
+
+      // Wire up WABA ID update button
+      document.getElementById('farolchat_waba_id_btn').addEventListener('click', function() {
+        var newWabaId = document.getElementById('farolchat_waba_id').value.trim();
+        if (!newWabaId) {
+          showToast('Por favor, insira o WABA ID', true);
+          return;
+        }
+
+        var btn = this;
+        btn.disabled = true;
+        btn.textContent = 'Atualizando...';
+        btn.style.opacity = '0.7';
+
+        // Merge with existing provider_config
+        var updatedConfig = Object.assign({}, providerConfig, { business_account_id: newWabaId });
+        
+        updateProviderConfig(ids.accountId, ids.inboxId, updatedConfig, function(err2, data) {
+          btn.disabled = false;
+          btn.textContent = 'Atualizar';
+          btn.style.opacity = '1';
+
+          if (err2) {
+            showToast('Erro ao atualizar WABA ID. Tente novamente.', true);
+            console.error('[FarolChat WABA] Update error:', err2);
+          } else {
+            showToast('WABA ID atualizado com sucesso!', false);
+            // Update displayed value
+            var currentEl = document.getElementById('farolchat_waba_id_current');
+            if (currentEl) currentEl.textContent = newWabaId;
+            document.getElementById('farolchat_waba_id').value = '';
+            providerConfig.business_account_id = newWabaId;
+          }
+        });
+      });
+
+      // Wire up Phone Number ID update button
+      document.getElementById('farolchat_phone_number_id_btn').addEventListener('click', function() {
+        var newPhoneId = document.getElementById('farolchat_phone_number_id').value.trim();
+        if (!newPhoneId) {
+          showToast('Por favor, insira o Phone Number ID', true);
+          return;
+        }
+
+        var btn = this;
+        btn.disabled = true;
+        btn.textContent = 'Atualizando...';
+        btn.style.opacity = '0.7';
+
+        // Merge with existing provider_config
+        var updatedConfig = Object.assign({}, providerConfig, { phone_number_id: newPhoneId });
+
+        updateProviderConfig(ids.accountId, ids.inboxId, updatedConfig, function(err3, data) {
+          btn.disabled = false;
+          btn.textContent = 'Atualizar';
+          btn.style.opacity = '1';
+
+          if (err3) {
+            showToast('Erro ao atualizar Phone Number ID. Tente novamente.', true);
+            console.error('[FarolChat Phone] Update error:', err3);
+          } else {
+            showToast('Phone Number ID atualizado com sucesso!', false);
+            var currentEl2 = document.getElementById('farolchat_phone_number_id_current');
+            if (currentEl2) currentEl2.textContent = newPhoneId;
+            document.getElementById('farolchat_phone_number_id').value = '';
+            providerConfig.phone_number_id = newPhoneId;
+          }
+        });
+      });
+    });
+  }
+
+  // Monitor for page changes using MutationObserver + interval
+  function monitor() {
+    // Clean up marker if URL changed (navigated away)
+    var ids = getIdsFromUrl();
+    if (!ids) {
+      var existing = document.getElementById(INJECTED_MARKER);
+      if (existing) existing.remove();
+      return;
+    }
+    tryInject();
+  }
+
+  // Run periodically to detect Vue route changes
+  checkInterval = setInterval(monitor, 2000);
+
+  // Also listen for URL changes
+  var lastUrl = window.location.href;
+  setInterval(function() {
+    if (window.location.href !== lastUrl) {
+      lastUrl = window.location.href;
+      // Remove old injection on URL change
+      var old = document.getElementById(INJECTED_MARKER);
+      if (old) {
+        // Remove all injected sections
+        var wabaEl = document.getElementById('farolchat_waba_id');
+        var phoneEl = document.getElementById('farolchat_phone_number_id');
+        if (wabaEl) {
+          var sec = wabaEl.closest('.settings--section') || wabaEl.parentElement.parentElement;
+          if (sec) sec.remove();
+        }
+        if (phoneEl) {
+          var sec2 = phoneEl.closest('.settings--section') || phoneEl.parentElement.parentElement;
+          if (sec2) sec2.remove();
+        }
+        old.remove();
+      }
+      // Try inject on new page after a small delay
+      setTimeout(monitor, 1000);
+      setTimeout(monitor, 2500);
+    }
+  }, 500);
+
+  // Initial run with delays to account for Vue rendering
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() {
+      setTimeout(monitor, 2000);
+      setTimeout(monitor, 4000);
+    });
+  } else {
+    setTimeout(monitor, 2000);
+    setTimeout(monitor, 4000);
+  }
+})();
+    </script>
+
+    <div id="app"></div>
+    <noscript id="noscript">This app works best with JavaScript enabled.</noscript>
+    <%= yield %>
+    <% if @dashboard_scripts.present? %>
+      <%= @dashboard_scripts.html_safe %>
+    <% end %>
+  </body>
+</html>

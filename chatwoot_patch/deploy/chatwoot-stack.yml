@@ -1,0 +1,259 @@
+# Stack: chatwoot_v_4-11 — exported from running Docker Swarm
+# Generated: 2026-04-22 13:57:13.982494
+# Image in production: farolchat/chatwoot:4.12.1-waba.2
+
+version: '3.9'
+services:
+  chatwoot_app:
+    image: farolchat/chatwoot:4.12.1-waba.2
+    entrypoint:
+    - docker/entrypoints/rails.sh
+    command:
+    - bundle
+    - exec
+    - rails
+    - s
+    - -p
+    - '3000'
+    - -b
+    - 0.0.0.0
+    environment:
+      ACTIVE_STORAGE_SERVICE: amazon
+      AWS_ACCESS_KEY_ID: AKIA_REDACTED
+      AWS_REGION: sa-east-1
+      AWS_SECRET_ACCESS_KEY: AWS_SECRET_REDACTED
+      CHATWOOT_ENABLE_ACCOUNT_LEVEL_FEATURES: 'true'
+      CHATWOOT_HUB_URL: https://inovanode.com.br
+      DATABASE_URL: postgresql://postgres.SUPABASE_USER:SUPABASE_PASSWORD_REDACTED@aws-0-sa-east-1.pooler.supabase.com:6543/postgres?sslmode=require&prepared_statements=false
+      DB_POOL_REAPING_FREQUENCY: '10'
+      DEFAULT_LOCALE: pt_BR
+      DIRECT_UPLOADS_ENABLED: 'true'
+      DISABLE_AGENT_CONVERSATION_VIEW_OTHER: 'false'
+      ENABLE_ACCOUNT_SIGNUP: 'false'
+      ENABLE_RACK_ATTACK: 'false'
+      EVOLUTION_ADMIN_TOKEN: EVOLUTION_TOKEN_REDACTED
+      EVOLUTION_API_URL: https://evochat4.farolchat.com
+      EVOLUTION_PUBLIC_S3: 'false'
+      FORCE_SSL: 'true'
+      FRONTEND_URL: https://app.farolchat.com
+      HIDE_ALL_CHATS_FROM_AGENT: 'true'
+      INSTALLATION_ENV: docker
+      INSTALLATION_NAME: FarolChat
+      MAILER_INBOUND_EMAIL_DOMAIN: farolchat@gmail.com
+      MAILER_SENDER_EMAIL: Chatwoot <farolchat@gmail.com>
+      NODE_ENV: production
+      POSTGRES_STATEMENT_TIMEOUT: 30s
+      RACK_TIMEOUT_SERVICE_TIMEOUT: '30'
+      RAILS_ENV: production
+      RAILS_LOG_TO_STDOUT: 'true'
+      RAILS_MAX_THREADS: '3'
+      RAILS_SERVE_STATIC_FILES: 'true'
+      REDIS_URL: redis://:REDIS_PASSWORD_REDACTED@redis_redis:6379/0
+      S3_BUCKET_NAME: chat4
+      SECRET_KEY_BASE: SECRET_KEY_BASE_REDACTED
+      SIDEKIQ_CONCURRENCY: '5'
+      SMTP_ADDRESS: smtp.gmail.com
+      SMTP_AUTHENTICATION: login
+      SMTP_DOMAIN: gmail.com
+      SMTP_ENABLE_STARTTLS_AUTO: 'true'
+      SMTP_OPENSSL_VERIFY_MODE: peer
+      SMTP_PASSWORD: SMTP_APP_PASSWORD_REDACTED
+      SMTP_PORT: '587'
+      SMTP_USERNAME: farolchat@gmail.com
+      STRIPE_SECRET_KEY: sk_live_REDACTED
+      STRIPE_WEBHOOK_SECRET: whsec_REDACTED
+      TZ: America/Sao_Paulo
+      USE_INBOX_AVATAR_FOR_BOT: 'true'
+      WEBHOOKS_TRIGGER_TIMEOUT: '15'
+      WEB_CONCURRENCY: '2'
+    volumes:
+    - /opt/chatwoot_patch/Whatsapp.vue:/app/app/javascript/dashboard/routes/dashboard/settings/inbox/channels/Whatsapp.vue:ro
+    - /opt/chatwoot_patch/WhatsappEvolutionSettings.vue:/app/app/javascript/dashboard/components/WhatsappEvolutionSettings.vue:ro
+    - /opt/chatwoot_patch/_inbox_slim.json.jbuilder:/app/app/views/api/v1/models/_inbox_slim.json.jbuilder:ro
+    - /opt/chatwoot_patch/application.rb:/app/config/application.rb:ro
+    - /opt/chatwoot_patch/authorizations_controller.rb:/app/app/controllers/api/v1/accounts/evolution/authorizations_controller.rb:ro
+    - /opt/chatwoot_patch/auto_assignment_fix_patch.rb:/app/config/initializers/auto_assignment_fix_patch.rb:ro
+    - /opt/chatwoot_patch/auto_template_patch.rb:/app/config/initializers/auto_template_patch.rb:ro
+    - /opt/chatwoot_patch/billing_patch.rb:/app/config/initializers/billing_patch.rb:ro
+    - /opt/chatwoot_patch/campaign_mass_sending_patch.rb:/app/config/initializers/campaign_mass_sending_patch.rb:ro
+    - /opt/chatwoot_patch/canned_response_personal_audio_patch.rb:/app/config/initializers/canned_response_personal_audio_patch.rb:ro
+    - /opt/chatwoot_patch/disable_version_check.rb:/app/config/initializers/disable_version_check.rb:ro
+    - /opt/chatwoot_patch/enterprise_super_admin_accounts_controller.rb:/app/enterprise/app/controllers/enterprise/super_admin/accounts_controller.rb:ro
+    - /opt/chatwoot_patch/evolution.js:/app/app/javascript/dashboard/api/evolution.js:ro
+    - /opt/chatwoot_patch/evolution_can_reply_patch.rb:/app/config/initializers/evolution_can_reply_patch.rb:ro
+    - /opt/chatwoot_patch/evolution_inbox_callback.rb:/app/config/initializers/evolution_inbox_callback.rb:ro
+    - /opt/chatwoot_patch/evolution_message_sender.rb:/app/config/initializers/evolution_message_sender.rb:ro
+    - /opt/chatwoot_patch/evolution_routes.rb:/app/config/initializers/evolution_routes.rb:ro
+    - /opt/chatwoot_patch/evolution_webhook_controller.rb:/app/app/controllers/webhooks/evolution_controller.rb:ro
+    - /opt/chatwoot_patch/follow_up_patch.rb:/app/config/initializers/follow_up_patch.rb:ro
+    - /opt/chatwoot_patch/inboxMgmt.json:/app/app/javascript/dashboard/i18n/locale/pt_BR/inboxMgmt.json:ro
+    - /opt/chatwoot_patch/inbox_provider_config_merge_patch.rb:/app/config/initializers/inbox_provider_config_merge_patch.rb:ro
+    - /opt/chatwoot_patch/message_window_patch.rb:/app/config/initializers/message_window_patch.rb:ro
+    - /opt/chatwoot_patch/orphan_fix_patch.rb:/app/config/initializers/orphan_fix_patch.rb:ro
+    - /opt/chatwoot_patch/vueapp.html.erb:/app/app/views/layouts/vueapp.html.erb:ro
+    - /opt/chatwoot_patch/webhook_fix_patch.rb:/app/config/initializers/webhook_fix_patch.rb:ro
+    - chatwoot_data:/app/storage
+    - chatwoot_mailers:/app/app/views/mailers
+    - chatwoot_public:/app/public
+    networks:
+    - network_public
+    deploy:
+      replicas: 2
+      placement:
+        constraints:
+        - node.role == manager
+      resources:
+        limits:
+          cpus: "3.0"
+          memory: 8191M
+      update_config:
+        parallelism: 2
+        order: start-first
+        failure_action: rollback
+        monitor: 30s
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        delay: 15s
+      labels:
+        com.docker.stack.image: farolchat/chatwoot:4.11.1-waba-templates
+        com.docker.stack.namespace: chatwoot_v_4-11
+        traefik.enable: 'true'
+        traefik.http.middlewares.chatwoot-timeout.headers.customresponseheaders.X-Content-Type-Options: nosniff
+        traefik.http.middlewares.sslheader.headers.customrequestheaders.X-Forwarded-Proto: https
+        traefik.http.middlewares.upload_limit.buffering.maxRequestBodyBytes: '104857600'
+        traefik.http.routers.chatwoot_app.entrypoints: websecure
+        traefik.http.routers.chatwoot_app.middlewares: sslheader@docker,upload_limit@docker
+        traefik.http.routers.chatwoot_app.priority: '1'
+        traefik.http.routers.chatwoot_app.rule: Host(`app.farolchat.com`)
+        traefik.http.routers.chatwoot_app.service: chatwoot_app
+        traefik.http.routers.chatwoot_app.tls.certresolver: letsencryptresolver
+        traefik.http.services.chatwoot_app.loadbalancer.passhostheader: 'true'
+        traefik.http.services.chatwoot_app.loadbalancer.responseforwarding.flushinterval: 100ms
+        traefik.http.services.chatwoot_app.loadbalancer.server.port: '3000'
+        traefik.http.services.chatwoot_app.loadbalancer.sticky.cookie: 'true'
+        traefik.http.services.chatwoot_app.loadbalancer.sticky.cookie.httpOnly: 'true'
+        traefik.http.services.chatwoot_app.loadbalancer.sticky.cookie.name: Chatwoot_sticky
+        traefik.http.services.chatwoot_app.loadbalancer.sticky.cookie.sameSite: lax
+        traefik.http.services.chatwoot_app.loadbalancer.sticky.cookie.secure: 'true'
+  chatwoot_sidekiq:
+    image: farolchat/chatwoot:4.12.1-waba.2
+    command:
+    - bundle
+    - exec
+    - sidekiq
+    - -C
+    - config/sidekiq.yml
+    environment:
+      ACTIVE_STORAGE_SERVICE: amazon
+      AWS_ACCESS_KEY_ID: AKIA_REDACTED
+      AWS_REGION: sa-east-1
+      AWS_SECRET_ACCESS_KEY: AWS_SECRET_REDACTED
+      CHATWOOT_ENABLE_ACCOUNT_LEVEL_FEATURES: 'true'
+      CHATWOOT_HUB_URL: https://inovanode.com.br
+      DATABASE_URL: postgresql://postgres.SUPABASE_USER:SUPABASE_PASSWORD_REDACTED@aws-0-sa-east-1.pooler.supabase.com:6543/postgres?sslmode=require&prepared_statements=false
+      DB_POOL_REAPING_FREQUENCY: '10'
+      DEFAULT_LOCALE: pt_BR
+      DIRECT_UPLOADS_ENABLED: 'true'
+      DISABLE_AGENT_CONVERSATION_VIEW_OTHER: 'false'
+      ENABLE_ACCOUNT_SIGNUP: 'false'
+      ENABLE_RACK_ATTACK: 'false'
+      EVOLUTION_ADMIN_TOKEN: EVOLUTION_TOKEN_REDACTED
+      EVOLUTION_API_URL: https://evochat4.farolchat.com
+      EVOLUTION_PUBLIC_S3: 'false'
+      FORCE_SSL: 'true'
+      FRONTEND_URL: https://app.farolchat.com
+      HIDE_ALL_CHATS_FROM_AGENT: 'true'
+      INSTALLATION_ENV: docker
+      INSTALLATION_NAME: FarolChat
+      MAILER_INBOUND_EMAIL_DOMAIN: farolchat@gmail.com
+      MAILER_SENDER_EMAIL: Chatwoot <farolchat@gmail.com>
+      NODE_ENV: production
+      OUTBOUND_HTTP_OPEN_TIMEOUT: '30'
+      OUTBOUND_HTTP_READ_TIMEOUT: '120'
+      POSTGRES_STATEMENT_TIMEOUT: 30s
+      RACK_TIMEOUT_SERVICE_TIMEOUT: '30'
+      RAILS_ENV: production
+      RAILS_LOG_TO_STDOUT: 'true'
+      RAILS_MAX_THREADS: '3'
+      REDIS_URL: redis://:REDIS_PASSWORD_REDACTED@redis_redis:6379/0
+      S3_BUCKET_NAME: chat4
+      SECRET_KEY_BASE: SECRET_KEY_BASE_REDACTED
+      SIDEKIQ_CONCURRENCY: '5'
+      SMTP_ADDRESS: smtp.gmail.com
+      SMTP_AUTHENTICATION: login
+      SMTP_DOMAIN: gmail.com
+      SMTP_ENABLE_STARTTLS_AUTO: 'true'
+      SMTP_OPENSSL_VERIFY_MODE: peer
+      SMTP_PASSWORD: SMTP_APP_PASSWORD_REDACTED
+      SMTP_PORT: '587'
+      SMTP_USERNAME: farolchat@gmail.com
+      STRIPE_SECRET_KEY: sk_live_REDACTED
+      STRIPE_WEBHOOK_SECRET: whsec_REDACTED
+      TZ: America/Sao_Paulo
+      USE_INBOX_AVATAR_FOR_BOT: 'true'
+      WEBHOOKS_TRIGGER_TIMEOUT: '15'
+      WEB_CONCURRENCY: '2'
+    volumes:
+    - /opt/chatwoot_patch/Whatsapp.vue:/app/app/javascript/dashboard/routes/dashboard/settings/inbox/channels/Whatsapp.vue:ro
+    - /opt/chatwoot_patch/WhatsappEvolutionSettings.vue:/app/app/javascript/dashboard/components/WhatsappEvolutionSettings.vue:ro
+    - /opt/chatwoot_patch/_inbox_slim.json.jbuilder:/app/app/views/api/v1/models/_inbox_slim.json.jbuilder:ro
+    - /opt/chatwoot_patch/application.rb:/app/config/application.rb:ro
+    - /opt/chatwoot_patch/authorizations_controller.rb:/app/app/controllers/api/v1/accounts/evolution/authorizations_controller.rb:ro
+    - /opt/chatwoot_patch/auto_assignment_fix_patch.rb:/app/config/initializers/auto_assignment_fix_patch.rb:ro
+    - /opt/chatwoot_patch/auto_template_patch.rb:/app/config/initializers/auto_template_patch.rb:ro
+    - /opt/chatwoot_patch/billing_patch.rb:/app/config/initializers/billing_patch.rb:ro
+    - /opt/chatwoot_patch/campaign_mass_sending_patch.rb:/app/config/initializers/campaign_mass_sending_patch.rb:ro
+    - /opt/chatwoot_patch/canned_response_personal_audio_patch.rb:/app/config/initializers/canned_response_personal_audio_patch.rb:ro
+    - /opt/chatwoot_patch/disable_version_check.rb:/app/config/initializers/disable_version_check.rb:ro
+    - /opt/chatwoot_patch/enterprise_super_admin_accounts_controller.rb:/app/enterprise/app/controllers/enterprise/super_admin/accounts_controller.rb:ro
+    - /opt/chatwoot_patch/evolution.js:/app/app/javascript/dashboard/api/evolution.js:ro
+    - /opt/chatwoot_patch/evolution_can_reply_patch.rb:/app/config/initializers/evolution_can_reply_patch.rb:ro
+    - /opt/chatwoot_patch/evolution_inbox_callback.rb:/app/config/initializers/evolution_inbox_callback.rb:ro
+    - /opt/chatwoot_patch/evolution_message_sender.rb:/app/config/initializers/evolution_message_sender.rb:ro
+    - /opt/chatwoot_patch/evolution_routes.rb:/app/config/initializers/evolution_routes.rb:ro
+    - /opt/chatwoot_patch/evolution_webhook_controller.rb:/app/app/controllers/webhooks/evolution_controller.rb:ro
+    - /opt/chatwoot_patch/follow_up_patch.rb:/app/config/initializers/follow_up_patch.rb:ro
+    - /opt/chatwoot_patch/inboxMgmt.json:/app/app/javascript/dashboard/i18n/locale/pt_BR/inboxMgmt.json:ro
+    - /opt/chatwoot_patch/inbox_provider_config_merge_patch.rb:/app/config/initializers/inbox_provider_config_merge_patch.rb:ro
+    - /opt/chatwoot_patch/message_window_patch.rb:/app/config/initializers/message_window_patch.rb:ro
+    - /opt/chatwoot_patch/orphan_fix_patch.rb:/app/config/initializers/orphan_fix_patch.rb:ro
+    - /opt/chatwoot_patch/vueapp.html.erb:/app/app/views/layouts/vueapp.html.erb:ro
+    - /opt/chatwoot_patch/webhook_fix_patch.rb:/app/config/initializers/webhook_fix_patch.rb:ro
+    - chatwoot_data:/app/storage
+    - chatwoot_mailers:/app/app/views/mailers
+    - chatwoot_public:/app/public
+    networks:
+    - network_public
+    deploy:
+      replicas: 3
+      placement:
+        constraints:
+        - node.role == manager
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 8191M
+      update_config:
+        parallelism: 1
+        order: start-first
+        failure_action: rollback
+        monitor: 30s
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        delay: 10s
+      labels:
+        com.docker.stack.image: farolchat/chatwoot:4.11.1-waba-templates
+        com.docker.stack.namespace: chatwoot_v_4-11
+networks:
+  network_public:
+    external: true
+volumes:
+  chatwoot_data:
+    external: true
+  chatwoot_mailers:
+    external: true
+  chatwoot_public:
+    external: true
+

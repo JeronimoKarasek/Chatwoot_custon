@@ -1,0 +1,255 @@
+# frozen_string_literal: true
+
+# Evolution Message Sender - Envia mensagens via Evolution API
+# Intercepta o envio de mensagens para inboxes com provider_type 'evolution'
+# e redireciona para a API do Evolution em vez do WhatsApp Cloud API
+
+Rails.application.config.after_initialize do
+  Rails.logger.info "EvolutionMessageSender: Loading..."
+
+  # Module para interceptar envio de mensagens em Channel::Whatsapp
+  module EvolutionMessageDispatcher
+    def send_message(phone_number, message)
+      # Verifica se é um canal Evolution
+      if evolution_channel?
+        Rails.logger.info "EvolutionMessageSender: Routing message #{message&.id} via Evolution API"
+        return send_via_evolution(phone_number, message)
+      end
+
+      # Caso contrário, usa o envio original (WhatsApp Cloud API)
+      super
+    end
+
+    private
+
+    def send_via_evolution(phone_number, message)
+      instance_name = provider_config['instance_name']
+      api_url = provider_config['api_url'] || ENV['EVOLUTION_API_URL']
+      api_hash = provider_config['api_hash']
+      api_key = api_hash.presence || provider_config['admin_token'] || ENV['EVOLUTION_ADMIN_TOKEN']
+
+      if instance_name.blank? || api_url.blank? || api_key.blank?
+        Rails.logger.error "EvolutionMessageSender: Missing config - instance: #{instance_name}, url: #{api_url}, key: #{api_key.present?}"
+        raise "Evolution API not configured for this inbox"
+      end
+
+      # Limpar número de telefone (formato: 5511999999999)
+      clean_number = phone_number.to_s.gsub(/\D/, '')
+      # Garantir formato com @s.whatsapp.net
+      jid = clean_number.include?('@') ? clean_number : "#{clean_number}@s.whatsapp.net"
+
+      if message.is_a?(Message)
+        send_chatwoot_message_via_evolution(api_url, api_key, instance_name, jid, clean_number, message)
+      else
+        # Mensagem simples (string)
+        send_text_via_evolution(api_url, api_key, instance_name, jid, clean_number, message.to_s)
+      end
+    end
+
+    def send_chatwoot_message_via_evolution(api_url, api_key, instance_name, jid, phone_number, message)
+      # Verificar se tem anexos
+      if message.attachments.any?
+        results = []
+        # Enviar cada anexo
+        message.attachments.each do |attachment|
+          result = send_media_via_evolution(api_url, api_key, instance_name, jid, phone_number, attachment, message)
+          results << result
+        end
+
+        # Se a mensagem tem texto além dos anexos, enviar separadamente
+        if message.content.present? && message.attachments.size > 0
+          # O caption já é enviado com a mídia, não precisa enviar separado
+          # a menos que haja múltiplos anexos
+          if message.attachments.size > 1
+            text_result = send_text_via_evolution(api_url, api_key, instance_name, jid, phone_number, message.content)
+            results << text_result
+          end
+        end
+
+        # Retornar o source_id do primeiro resultado
+        source_id = results.compact.first
+        update_message_source_id(message, source_id) if source_id
+        return source_id
+      else
+        # Mensagem apenas texto
+        source_id = send_text_via_evolution(api_url, api_key, instance_name, jid, phone_number, message.content)
+        update_message_source_id(message, source_id) if source_id
+        return source_id
+      end
+    end
+
+    def send_text_via_evolution(api_url, api_key, instance_name, jid, phone_number, text)
+      url = "#{api_url.chomp('/')}/message/sendText/#{instance_name}"
+      Rails.logger.info "EvolutionMessageSender: Sending text to #{phone_number} via #{url}"
+
+      body = {
+        number: phone_number,
+        text: text
+      }
+
+      response = evolution_http_post(url, api_key, body)
+
+      if response.is_a?(Net::HTTPSuccess)
+        data = JSON.parse(response.body) rescue {}
+        source_id = data.dig('key', 'id') || data['messageId'] || data['id']
+        Rails.logger.info "EvolutionMessageSender: Text sent successfully, source_id: #{source_id}"
+        source_id
+      else
+        Rails.logger.error "EvolutionMessageSender: Failed to send text. Status: #{response.code}, Body: #{response.body}"
+        raise "Evolution API error: #{response.code} - #{response.body}"
+      end
+    rescue JSON::ParserError => e
+      Rails.logger.error "EvolutionMessageSender: JSON parse error: #{e.message}"
+      nil
+    end
+
+    def send_media_via_evolution(api_url, api_key, instance_name, jid, phone_number, attachment, message)
+      media_type = detect_media_type(attachment)
+      url = "#{api_url.chomp('/')}/message/sendMedia/#{instance_name}"
+      Rails.logger.info "EvolutionMessageSender: Sending #{media_type} to #{phone_number}"
+
+      # Obter URL do arquivo
+      file_url = attachment.file_url
+      unless file_url
+        Rails.logger.error "EvolutionMessageSender: No file URL for attachment #{attachment.id}"
+        return nil
+      end
+
+      # Garantir URL absoluta
+      unless file_url.start_with?('http')
+        frontend_url = ENV['FRONTEND_URL'] || 'https://app.farolchat.com'
+        file_url = "#{frontend_url.chomp('/')}#{file_url}"
+      end
+
+      body = {
+        number: phone_number,
+        mediatype: media_type,
+        mimetype: attachment.content_type || 'application/octet-stream',
+        caption: (media_type == 'image' || media_type == 'video') ? (message.content || '') : '',
+        media: file_url,
+        fileName: attachment.file&.filename.to_s.presence || "file_#{attachment.id}"
+      }
+
+      response = evolution_http_post(url, api_key, body)
+
+      if response.is_a?(Net::HTTPSuccess)
+        data = JSON.parse(response.body) rescue {}
+        source_id = data.dig('key', 'id') || data['messageId'] || data['id']
+        Rails.logger.info "EvolutionMessageSender: Media sent successfully, source_id: #{source_id}"
+        source_id
+      else
+        Rails.logger.error "EvolutionMessageSender: Failed to send media. Status: #{response.code}, Body: #{response.body}"
+        # Tentar enviar como documento se falhou
+        nil
+      end
+    rescue => e
+      Rails.logger.error "EvolutionMessageSender: Error sending media: #{e.message}"
+      nil
+    end
+
+    def detect_media_type(attachment)
+      content_type = attachment.content_type.to_s.downcase
+      case content_type
+      when /^image\//
+        'image'
+      when /^video\//
+        'video'
+      when /^audio\//, /^application\/ogg/
+        'audio'
+      else
+        'document'
+      end
+    end
+
+    def evolution_http_post(url, api_key, body)
+      uri = URI.parse(url)
+
+      http = Net::HTTP.new(uri.host, uri.port)
+      http.use_ssl = (uri.scheme == 'https')
+      http.open_timeout = 15
+      http.read_timeout = 30
+
+      request = Net::HTTP::Post.new(uri)
+      request['apikey'] = api_key
+      request['Content-Type'] = 'application/json'
+      request.body = body.to_json
+
+      http.request(request)
+    end
+
+    def update_message_source_id(message, source_id)
+      return unless source_id.present?
+      message.update_columns(source_id: source_id, status: :sent)
+    rescue => e
+      Rails.logger.warn "EvolutionMessageSender: Could not update source_id: #{e.message}"
+    end
+
+    def evolution_channel?
+      provider_config&.dig('provider_type') == 'evolution'
+    end
+  end
+
+  # Prepend o módulo ao Channel::Whatsapp para interceptar send_message
+  if defined?(Channel::Whatsapp) && Channel::Whatsapp.method_defined?(:send_message)
+    Channel::Whatsapp.prepend(EvolutionMessageDispatcher)
+    Rails.logger.info "EvolutionMessageSender: Prepended to Channel::Whatsapp#send_message"
+  else
+    Rails.logger.warn "EvolutionMessageSender: Channel::Whatsapp#send_message not found, trying alternative hook"
+
+    # Hook alternativo via Whatsapp::SendOnWhatsappService
+    if defined?(Whatsapp::SendOnWhatsappService)
+      Whatsapp::SendOnWhatsappService.class_eval do
+        alias_method :original_perform, :perform
+
+        def perform
+          channel = inbox.channel
+          if channel.is_a?(Channel::Whatsapp) && channel.provider_config&.dig('provider_type') == 'evolution'
+            Rails.logger.info "EvolutionMessageSender: Intercepting SendOnWhatsappService for Evolution"
+            send_evolution_message(channel)
+          else
+            original_perform
+          end
+        end
+
+        private
+
+        def send_evolution_message(channel)
+          instance_name = channel.provider_config['instance_name']
+          api_url = channel.provider_config['api_url'] || ENV['EVOLUTION_API_URL']
+          api_key = channel.provider_config['api_hash'] || channel.provider_config['admin_token'] || ENV['EVOLUTION_ADMIN_TOKEN']
+
+          phone = conversation.contact.phone_number.to_s.gsub(/\D/, '')
+          content = message.content || ''
+
+          url = "#{api_url.chomp('/')}/message/sendText/#{instance_name}"
+
+          uri = URI.parse(url)
+          http = Net::HTTP.new(uri.host, uri.port)
+          http.use_ssl = (uri.scheme == 'https')
+          http.open_timeout = 15
+          http.read_timeout = 30
+
+          req = Net::HTTP::Post.new(uri)
+          req['apikey'] = api_key
+          req['Content-Type'] = 'application/json'
+          req.body = { number: phone, text: content }.to_json
+
+          response = http.request(req)
+
+          if response.is_a?(Net::HTTPSuccess)
+            data = JSON.parse(response.body) rescue {}
+            source_id = data.dig('key', 'id') || data['messageId']
+            message.update_columns(source_id: source_id, status: :sent) if source_id
+            Rails.logger.info "EvolutionMessageSender: Message sent via service, source_id: #{source_id}"
+          else
+            Rails.logger.error "EvolutionMessageSender: Send failed: #{response.code} #{response.body}"
+            message.update!(status: :failed) rescue nil
+          end
+        end
+      end
+      Rails.logger.info "EvolutionMessageSender: Hooked into Whatsapp::SendOnWhatsappService"
+    end
+  end
+
+  Rails.logger.info "EvolutionMessageSender: Loaded successfully"
+end

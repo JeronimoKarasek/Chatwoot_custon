@@ -1,0 +1,201 @@
+# frozen_string_literal: true
+# Evolution API - Send messages via API (not Chatwoot integration)
+# This callback intercepts outgoing messages and sends them to Evolution API
+
+Rails.application.config.after_initialize do
+  # Hook into Message model to send via Evolution API
+  Message.class_eval do
+    after_create :send_via_evolution_api, if: :should_send_via_evolution?
+
+    private
+
+    def should_send_via_evolution?
+      return false unless outgoing?
+      return false unless inbox&.channel.is_a?(Channel::Whatsapp)
+      return false unless inbox.channel.provider == 'evolution'
+      return false if private?
+      
+      # Skip if this is a message received from webhook (has source_id from Evolution)
+      return false if source_id.present? && source_id.start_with?('BAE', '3EB')
+      
+      true
+    end
+
+    def send_via_evolution_api
+      Rails.logger.info "Evolution Sender: Sending message #{id} via Evolution API"
+      
+      channel = inbox.channel
+      provider_config = channel.provider_config || {}
+      
+      instance_name = provider_config['instance_name']
+      api_url = provider_config['api_url'] || ENV['EVOLUTION_API_URL']
+      api_key = provider_config['api_hash'] || provider_config['admin_token'] || ENV['EVOLUTION_ADMIN_TOKEN']
+      
+      unless instance_name && api_url && api_key
+        Rails.logger.error "Evolution Sender: Missing configuration for inbox #{inbox.id}"
+        return
+      end
+      
+      # Get recipient phone number
+      phone_number = get_recipient_phone_number
+      unless phone_number
+        Rails.logger.error "Evolution Sender: Could not determine recipient phone"
+        return
+      end
+      
+      # Format phone for WhatsApp (remove + and add @s.whatsapp.net)
+      formatted_phone = phone_number.gsub(/^\+/, '').gsub(/[\s\-]/, '')
+      
+      begin
+        if attachments.any?
+          send_media_message(api_url, api_key, instance_name, formatted_phone)
+        else
+          send_text_message(api_url, api_key, instance_name, formatted_phone)
+        end
+      rescue StandardError => e
+        Rails.logger.error "Evolution Sender: Failed to send message #{id}: #{e.message}"
+        Rails.logger.error e.backtrace.first(5).join("\n")
+      end
+    end
+
+    def get_recipient_phone_number
+      # Get from contact associated with conversation
+      contact = conversation&.contact
+      return contact.phone_number if contact&.phone_number.present?
+      
+      # Fallback: get from contact_inbox source_id
+      contact_inbox = conversation&.contact_inbox
+      return contact_inbox.source_id if contact_inbox&.source_id.present?
+      
+      nil
+    end
+
+    def send_text_message(api_url, api_key, instance_name, phone)
+      return if content.blank?
+      
+      url = "#{api_url.chomp('/')}/message/sendText/#{instance_name}"
+      Rails.logger.info "Evolution Sender: POST #{url}"
+      
+      payload = {
+        number: phone,
+        text: content
+      }
+      
+      response = evolution_http_request(url, api_key, payload)
+      handle_send_response(response, 'text')
+    end
+
+    def send_media_message(api_url, api_key, instance_name, phone)
+      attachment = attachments.first
+      
+      # Determine message type based on file type
+      file_type = attachment.file_type
+      media_url = attachment.file_url
+      caption = content.presence
+      
+      case file_type
+      when 'image'
+        send_image(api_url, api_key, instance_name, phone, media_url, caption)
+      when 'audio'
+        send_audio(api_url, api_key, instance_name, phone, media_url)
+      when 'video'
+        send_video(api_url, api_key, instance_name, phone, media_url, caption)
+      else
+        send_document(api_url, api_key, instance_name, phone, media_url, attachment.file.filename.to_s, caption)
+      end
+    end
+
+    def send_image(api_url, api_key, instance_name, phone, media_url, caption)
+      url = "#{api_url.chomp('/')}/message/sendMedia/#{instance_name}"
+      
+      payload = {
+        number: phone,
+        mediatype: 'image',
+        media: media_url,
+        caption: caption
+      }.compact
+      
+      response = evolution_http_request(url, api_key, payload)
+      handle_send_response(response, 'image')
+    end
+
+    def send_audio(api_url, api_key, instance_name, phone, media_url)
+      url = "#{api_url.chomp('/')}/message/sendWhatsAppAudio/#{instance_name}"
+      
+      payload = {
+        number: phone,
+        audio: media_url
+      }
+      
+      response = evolution_http_request(url, api_key, payload)
+      handle_send_response(response, 'audio')
+    end
+
+    def send_video(api_url, api_key, instance_name, phone, media_url, caption)
+      url = "#{api_url.chomp('/')}/message/sendMedia/#{instance_name}"
+      
+      payload = {
+        number: phone,
+        mediatype: 'video',
+        media: media_url,
+        caption: caption
+      }.compact
+      
+      response = evolution_http_request(url, api_key, payload)
+      handle_send_response(response, 'video')
+    end
+
+    def send_document(api_url, api_key, instance_name, phone, media_url, filename, caption)
+      url = "#{api_url.chomp('/')}/message/sendMedia/#{instance_name}"
+      
+      payload = {
+        number: phone,
+        mediatype: 'document',
+        media: media_url,
+        fileName: filename,
+        caption: caption
+      }.compact
+      
+      response = evolution_http_request(url, api_key, payload)
+      handle_send_response(response, 'document')
+    end
+
+    def evolution_http_request(url, api_key, payload)
+      uri = URI.parse(url)
+      
+      http = Net::HTTP.new(uri.host, uri.port)
+      http.use_ssl = (uri.scheme == 'https')
+      http.open_timeout = 15
+      http.read_timeout = 30
+      
+      request = Net::HTTP::Post.new(uri)
+      request['apikey'] = api_key
+      request['Content-Type'] = 'application/json'
+      request.body = payload.to_json
+      
+      Rails.logger.info "Evolution Sender: Request body: #{payload.to_json}"
+      
+      http.request(request)
+    end
+
+    def handle_send_response(response, type)
+      Rails.logger.info "Evolution Sender: Response code: #{response.code}"
+      Rails.logger.info "Evolution Sender: Response body: #{response.body}"
+      
+      if response.is_a?(Net::HTTPSuccess)
+        begin
+          result = JSON.parse(response.body)
+          # Update message source_id with Evolution message ID
+          if result['key'] && result['key']['id']
+            update_column(:source_id, result['key']['id'])
+            Rails.logger.info "Evolution Sender: Message sent successfully, ID: #{result['key']['id']}"
+          end
+        rescue JSON::ParserError
+          Rails.logger.warn "Evolution Sender: Could not parse response JSON"
+        end
+      else
+        Rails.logger.error "Evolution Sender: Failed to send #{type} message. Status: #{response.code}"
+      end
+    end
+  end
+end
