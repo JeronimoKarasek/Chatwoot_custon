@@ -34,6 +34,9 @@ services:
       - /opt/chatwoot_patch/billing_patch.rb:/app/config/initializers/billing_patch.rb:ro
       - /opt/chatwoot_patch/inbox_provider_config_merge_patch.rb:/app/config/initializers/inbox_provider_config_merge_patch.rb:ro
       - /opt/chatwoot_patch/auto_assignment_fix_patch.rb:/app/config/initializers/auto_assignment_fix_patch.rb:ro
+      # ====== Patch Atribuição Forçada com agentes offline (round-robin uniforme) ======
+      # IMPORTANTE: precisa carregar APÓS auto_assignment_fix_patch.rb
+      - /opt/chatwoot_patch/force_assignment_offline_patch.rb:/app/config/initializers/force_assignment_offline_patch.rb:ro
       - /opt/chatwoot_patch/WhatsappEvolutionSettings.vue:/app/app/javascript/dashboard/components/WhatsappEvolutionSettings.vue:ro
       - /opt/chatwoot_patch/evolution.js:/app/app/javascript/dashboard/api/evolution.js:ro
       - /opt/chatwoot_patch/inboxMgmt.json:/app/app/javascript/dashboard/i18n/locale/pt_BR/inboxMgmt.json:ro
@@ -160,6 +163,9 @@ services:
       - /opt/chatwoot_patch/billing_patch.rb:/app/config/initializers/billing_patch.rb:ro
       - /opt/chatwoot_patch/inbox_provider_config_merge_patch.rb:/app/config/initializers/inbox_provider_config_merge_patch.rb:ro
       - /opt/chatwoot_patch/auto_assignment_fix_patch.rb:/app/config/initializers/auto_assignment_fix_patch.rb:ro
+      # ====== Patch Atribuição Forçada com agentes offline (round-robin uniforme) ======
+      # IMPORTANTE: precisa carregar APÓS auto_assignment_fix_patch.rb
+      - /opt/chatwoot_patch/force_assignment_offline_patch.rb:/app/config/initializers/force_assignment_offline_patch.rb:ro
       - /opt/chatwoot_patch/WhatsappEvolutionSettings.vue:/app/app/javascript/dashboard/components/WhatsappEvolutionSettings.vue:ro
       - /opt/chatwoot_patch/evolution.js:/app/app/javascript/dashboard/api/evolution.js:ro
       - /opt/chatwoot_patch/inboxMgmt.json:/app/app/javascript/dashboard/i18n/locale/pt_BR/inboxMgmt.json:ro
